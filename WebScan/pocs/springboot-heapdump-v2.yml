@@ -1,0 +1,46 @@
+name: springboot-heapdump-v2
+groups:
+  path1:
+    - method: GET
+      path: "/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+  path2:
+    - method: GET
+      path: "/actuator/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+  path3:
+    - method: GET
+      path: "/api/v1/actuator/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+  path4:
+    - method: GET
+      path: "/api/v2/actuator/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+  path5:
+    - method: GET
+      path: "/api/v3/actuator/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+  path6:
+    - method: GET
+      path: "/api/v4/actuator/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+  path7:
+    - method: GET
+      path: "/api/v5/actuator/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+  path8:
+    - method: GET
+      path: "/api/actuator/heapdump"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"JAVA PROFILE") || response.body.bcontains(b"HPROF"))
+detail:
+  author: that_juan_,dwisiswant0,wdahlenb,dk4trin
+  links:
+    - https://github.com/pyn3rd/Spring-Boot-Vulnerability

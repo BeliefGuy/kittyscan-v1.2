@@ -1,0 +1,10 @@
+name: apache-solr-file-read-2
+rules:
+  - method: GET
+    path: "/solr/admin/cores?wt=json"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"\"name\":")
+detail:
+  author: DhiyaneshDk,philippedelteil
+  links:
+    - https://twitter.com/Al1ex4/status/1382981479727128580

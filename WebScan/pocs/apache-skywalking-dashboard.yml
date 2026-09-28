@@ -1,0 +1,10 @@
+name: apache-skywalking-dashboard
+rules:
+  - method: GET
+    path: "/dashboard/list"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"title>Apache SkyWalking") && response.body.bcontains(b"/css/monaco-editor")
+detail:
+  author: icarot
+  links:
+    - https://github.com/apache/skywalking

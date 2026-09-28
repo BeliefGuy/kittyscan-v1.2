@@ -1,0 +1,111 @@
+name: poc-yaml-sensitive-file-exposure
+groups:
+  git:
+    - method: GET
+      path: /.git/config
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"[core]") && response.body.bcontains(b"repositoryformatversion")
+    - method: GET
+      path: /.git/HEAD
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"ref:")
+  svn:
+    - method: GET
+      path: /.svn/entries
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"svn:wc:")
+    - method: GET
+      path: /.svn/wc.db
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"SQLite format 3")
+  env:
+    - method: GET
+      path: /.env
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"DB_HOST=") && response.body.bcontains(b"DB_PASSWORD=")
+    - method: GET
+      path: /.env.bak
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"DB_HOST=") && response.body.bcontains(b"DB_PASSWORD=")
+    - method: GET
+      path: /.env.local
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"DB_HOST=") && response.body.bcontains(b"DB_PASSWORD=")
+    - method: GET
+      path: /.env.production
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"DB_HOST=") && response.body.bcontains(b"DB_PASSWORD=")
+  config:
+    - method: GET
+      path: /config.json
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"password") && response.body.bcontains(b"host")
+    - method: GET
+      path: /settings.json
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"password") && response.body.bcontains(b"host")
+    - method: GET
+      path: /application.yml
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"spring:") && response.body.bcontains(b"datasource:")
+    - method: GET
+      path: /application.properties
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"spring.datasource.") && response.body.bcontains(b"password=")
+    - method: GET
+      path: /bootstrap.yml
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"spring:") && response.body.bcontains(b"cloud:")
+    - method: GET
+      path: /bootstrap.properties
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"spring.cloud.") && response.body.bcontains(b"password=")
+    - method: GET
+      path: /web.config
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"<configuration>") && response.body.bcontains(b"system.web")
+  ide:
+    - method: GET
+      path: /.idea/workspace.xml
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"<project") && response.body.bcontains(b"ProjectSdk")
+    - method: GET
+      path: /.vscode/settings.json
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"{")
+  docker:
+    - method: GET
+      path: /Dockerfile
+      follow_redirects: false
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"FROM ") || response.body.bcontains(b"RUN "))
+    - method: GET
+      path: /docker-compose.yml
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"services:") && response.body.bcontains(b"image:")
+    - method: GET
+      path: /docker-compose.yaml
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"services:") && response.body.bcontains(b"image:")
+detail:
+  author: laxy
+  description: Sensitive file exposure (.git, .svn, .env, config files)

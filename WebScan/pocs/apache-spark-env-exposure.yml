@@ -1,0 +1,16 @@
+name: apache-spark-env-exposure
+groups:
+  path1:
+    - method: GET
+      path: "/api/v1/applications"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"Spark") && response.body.bcontains(b"Java") && (response.body.bcontains(b"sparkProperties") || response.body.bcontains(b"appSparkVersion") || response.body.bcontains(b"Runtime Information") || response.body.bcontains(b"Spark Properties") || response.body.bcontains(b"spark.app.name") || response.body.bcontains(b"sparkUser"))
+  path2:
+    - method: GET
+      path: "/environment/"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"Spark") && response.body.bcontains(b"Java") && (response.body.bcontains(b"sparkProperties") || response.body.bcontains(b"appSparkVersion") || response.body.bcontains(b"Runtime Information") || response.body.bcontains(b"Spark Properties") || response.body.bcontains(b"spark.app.name") || response.body.bcontains(b"sparkUser"))
+detail:
+  author: 0x_Akoko
+  links:
+    - https://spark.apache.org/docs/latest/monitoring.html

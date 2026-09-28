@@ -1,0 +1,16 @@
+name: springboot-jolokia
+groups:
+  path1:
+    - method: GET
+      path: "/jolokia"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"config\":{") && response.body.bcontains(b"\"agentId\":\"")
+  path2:
+    - method: GET
+      path: "/actuator/jolokia"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"config\":{") && response.body.bcontains(b"\"agentId\":\"")
+detail:
+  author: DhiyaneshDK
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#jolokia

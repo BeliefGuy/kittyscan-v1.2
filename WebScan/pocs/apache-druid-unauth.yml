@@ -1,0 +1,10 @@
+name: apache-druid-unauth
+rules:
+  - method: GET
+    path: "/unified-console.html"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"<title>Apache Druid</title>")
+detail:
+  author: DhiyaneshDk
+  links:
+    - https://druid.apache.org/

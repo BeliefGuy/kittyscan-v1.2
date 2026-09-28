@@ -1,0 +1,16 @@
+name: springboot-flyway
+groups:
+  path1:
+    - method: GET
+      path: "/flyway"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"flywayBeans")
+  path2:
+    - method: GET
+      path: "/actuator/flyway"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"flywayBeans")
+detail:
+  author: ELSFA7110
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#flyway

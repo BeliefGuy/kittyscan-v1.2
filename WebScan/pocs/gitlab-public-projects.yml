@@ -1,0 +1,10 @@
+name: gitlab-public-projects
+rules:
+  - method: GET
+    path: "/api/v4/projects?visibility=public&per_page=5"
+    expression: |
+      response.status == 200 && response.content_type.contains("application/json") && response.body.bcontains(b"\"id\":") && response.body.bcontains(b"\"visibility\":\"public\"")
+detail:
+  author: metascan
+  links:
+    - https://docs.gitlab.com/ee/api/projects.html

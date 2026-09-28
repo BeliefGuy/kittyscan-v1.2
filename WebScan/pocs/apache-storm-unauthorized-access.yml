@@ -1,0 +1,11 @@
+name: apache-storm-unauthorized-access
+rules:
+  - method: GET
+    path: "/api/v1/cluster/summary"
+    follow_redirects: false
+    expression: |
+      response.status == 200 && response.body.bcontains(b"{\"totalMem\":") && response.body.bcontains(b"\"stormVersion\":")
+detail:
+  author: wulalalaaa(https://github.com/wulalalaaa)
+  links:
+    - https://storm.apache.org/releases/current/STORM-UI-REST-API.html

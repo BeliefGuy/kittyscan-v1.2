@@ -1,0 +1,16 @@
+name: springboot-startup
+groups:
+  path1:
+    - method: GET
+      path: "/startup"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"springBootVersion") && response.body.bcontains(b"startTime")
+  path2:
+    - method: GET
+      path: "/actuator/startup"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"springBootVersion") && response.body.bcontains(b"startTime")
+detail:
+  author: ELSFA7110
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#startup

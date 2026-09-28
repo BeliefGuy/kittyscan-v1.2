@@ -1,0 +1,10 @@
+name: apache-tomcat-snoop
+rules:
+  - method: GET
+    path: "/examples/jsp/snp/snoop.jsp"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"Request URI: /examples/jsp/snp/snoop.jsp")
+detail:
+  author: pdteam
+  links:
+    - https://www.rapid7.com/db/vulnerabilities/apache-tomcat-example-leaks

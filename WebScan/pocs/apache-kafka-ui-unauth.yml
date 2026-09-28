@@ -1,0 +1,16 @@
+name: apache-kafka-ui-unauth
+groups:
+  path1:
+    - method: GET
+      path: "/"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"<title>UI for Apache Kafka</title>")
+  path2:
+    - method: GET
+      path: "/ui/clusters/kafka-ui/brokers"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"<title>UI for Apache Kafka</title>")
+detail:
+  author: theamanrawat
+  links:
+    - https://github.com/provectus/kafka-ui

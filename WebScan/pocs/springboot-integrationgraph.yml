@@ -1,0 +1,16 @@
+name: springboot-integrationgraph
+groups:
+  path1:
+    - method: GET
+      path: "/integrationgraph"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"provider") && response.body.bcontains(b"integrationPatternType")
+  path2:
+    - method: GET
+      path: "/actuator/integrationgraph"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"provider") && response.body.bcontains(b"integrationPatternType")
+detail:
+  author: ELSFA7110
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#integrationgraph

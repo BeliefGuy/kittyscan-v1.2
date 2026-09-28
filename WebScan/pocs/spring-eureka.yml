@@ -1,0 +1,16 @@
+name: spring-eureka
+groups:
+  path1:
+    - method: GET
+      path: "/"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"System Status") && response.body.bcontains(b"Environment") && response.body.bcontains(b"Data center") && response.body.bcontains(b"DS Replicas") && response.body.bcontains(b"Instances currently registered with Eureka")
+  path2:
+    - method: GET
+      path: "/eureka/"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"System Status") && response.body.bcontains(b"Environment") && response.body.bcontains(b"Data center") && response.body.bcontains(b"DS Replicas") && response.body.bcontains(b"Instances currently registered with Eureka")
+detail:
+  author: tess
+  links:
+    - https://github.com/Netflix/eureka

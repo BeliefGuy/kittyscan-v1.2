@@ -1,0 +1,16 @@
+name: springboot-dump
+groups:
+  path1:
+    - method: GET
+      path: "/dump"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"threadName") && response.body.bcontains(b"threadId") && response.body.bcontains(b"waitedTime") && response.body.bcontains(b"lockName") && response.body.bcontains(b"stackTrace") && response.body.bcontains(b"methodName")
+  path2:
+    - method: GET
+      path: "/actuator/dump"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"threadName") && response.body.bcontains(b"threadId") && response.body.bcontains(b"waitedTime") && response.body.bcontains(b"lockName") && response.body.bcontains(b"stackTrace") && response.body.bcontains(b"methodName")
+detail:
+  author: pussycat0x
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#dump

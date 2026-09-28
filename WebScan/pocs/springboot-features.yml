@@ -1,0 +1,16 @@
+name: springboot-features
+groups:
+  path1:
+    - method: GET
+      path: "/features"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"enabled\":[") && response.body.bcontains(b"\"disabled\":[")
+  path2:
+    - method: GET
+      path: "/actuator/features"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"enabled\":[") && response.body.bcontains(b"\"disabled\":[")
+detail:
+  author: DhiyaneshDK
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#features

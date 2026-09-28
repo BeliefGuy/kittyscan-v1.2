@@ -1,0 +1,115 @@
+name: poc-yaml-common-endpoint-exposure
+groups:
+  actuator:
+    - method: GET
+      path: /actuator
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"_links\"")
+    - method: GET
+      path: /actuator/env
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"activeProfiles\"")
+    - method: GET
+      path: /actuator/configprops
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"contexts\"")
+    - method: GET
+      path: /actuator/beans
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"beans\"") && response.body.bcontains(b"\"context\"")
+    - method: GET
+      path: /actuator/mappings
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"mappings\"")
+    - method: GET
+      path: /env
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"java.version") && response.body.bcontains(b"os.arch")
+    - method: GET
+      path: /configprops
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"contexts\"")
+    - method: GET
+      path: /beans
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"beans\"") && response.body.bcontains(b"\"context\"")
+    - method: GET
+      path: /mappings
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"mappings\"")
+  api_doc:
+    - method: GET
+      path: /api-docs
+      follow_redirects: false
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"swagger\"") || (response.body.bcontains(b"\"paths\"") && response.body.bcontains(b"\"info\"")))
+    - method: GET
+      path: /v1/api-docs
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"swagger\"") && response.body.bcontains(b"\"paths\"")
+    - method: GET
+      path: /v2/api-docs
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"swagger\"") && response.body.bcontains(b"\"paths\"")
+    - method: GET
+      path: /api/v1/api-docs
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"swagger\"") && response.body.bcontains(b"\"paths\"")
+    - method: GET
+      path: /api/v2/api-docs
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"swagger\"") && response.body.bcontains(b"\"paths\"")
+    - method: GET
+      path: /swagger-resources
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"name\"") && response.body.bcontains(b"\"url\"")
+  jolokia:
+    - method: GET
+      path: /jolokia/list
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.content_type.contains("json") && response.body.bcontains(b"\"mbean\"")
+    - method: GET
+      path: /jolokia
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"Jolokia") && response.body.bcontains(b"mbean")
+  wsdl:
+    - method: GET
+      path: /services?wsdl
+      follow_redirects: false
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"wsdl:definitions") || response.body.bcontains(b"<wsdl:"))
+  info_leak:
+    - method: GET
+      path: /robots.txt
+      follow_redirects: false
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"User-agent:") || response.body.bcontains(b"Disallow:"))
+    - method: GET
+      path: /WEB-INF/web.xml
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"<?xml") && response.body.bcontains(b"<web-app")
+    - method: GET
+      path: /.DS_Store
+      follow_redirects: false
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\x00\x00\x00\x01Bud1")
+detail:
+  author: laxy
+  description: Common endpoint exposure (actuator, api-docs, jolokia, wsdl, info leak)

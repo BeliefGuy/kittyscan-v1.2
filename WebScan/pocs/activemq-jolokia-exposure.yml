@@ -1,0 +1,20 @@
+name: poc-yaml-activemq-jolokia-exposure
+groups:
+  detect:
+    - method: GET
+      path: /api/jolokia/
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"request") || response.body.bcontains(b"value") || response.body.bcontains(b"MBean"))
+    - method: GET
+      path: /admin/api/jolokia/
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"request") || response.body.bcontains(b"value") || response.body.bcontains(b"MBean"))
+detail:
+  author: L4xy
+  description: "Apache ActiveMQ Jolokia接口暴露检测，Jolokia是JMX-over-HTTP桥接接口，暴露后可能被利用进行远程代码执行(CVE-2026-42588)"
+  links:
+    - https://github.com/hnytgl/CVE-2026-42588
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-42588
+  tags: activemq,jolokia,exposure

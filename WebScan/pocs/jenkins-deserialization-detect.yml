@@ -1,0 +1,20 @@
+name: poc-yaml-jenkins-deserialization-detect
+groups:
+  detect:
+    - method: GET
+      path: /
+      follow_redirects: false
+      expression: >
+        response.status == 200 && response.body.bcontains(b"Jenkins") && (response.body.bcontains(b"Dashboard") || response.body.bcontains(b"login"))
+    - method: GET
+      path: /api/json
+      follow_redirects: false
+      expression: >
+        response.status == 200 && response.body.bcontains(b"Jenkins")
+detail:
+  author: L4xy
+  description: "Jenkins PersistenceRoot反序列化漏洞(CVE-2026-84645)影响版本检测，需要低权限账号(Item/Configure权限)才能利用"
+  links:
+    - https://www.jenkins.io/security/advisory/2026-09-02/
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-84645
+  tags: jenkins,deserialization

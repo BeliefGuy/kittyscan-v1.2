@@ -1,0 +1,26 @@
+name: springboot-sbom
+groups:
+  path1:
+    - method: GET
+      path: "/sbom"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"ids\"") && response.body.bcontains(b"\"application\"") || response.body.bcontains(b"\"bomFormat\"") && response.body.bcontains(b"\"specVersion\"") || response.body.bcontains(b"\"spdxVersion\"") && response.body.bcontains(b"\"SPDXID\""))
+  path2:
+    - method: GET
+      path: "/actuator/sbom"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"ids\"") && response.body.bcontains(b"\"application\"") || response.body.bcontains(b"\"bomFormat\"") && response.body.bcontains(b"\"specVersion\"") || response.body.bcontains(b"\"spdxVersion\"") && response.body.bcontains(b"\"SPDXID\""))
+  path3:
+    - method: GET
+      path: "/sbom/application"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"ids\"") && response.body.bcontains(b"\"application\"") || response.body.bcontains(b"\"bomFormat\"") && response.body.bcontains(b"\"specVersion\"") || response.body.bcontains(b"\"spdxVersion\"") && response.body.bcontains(b"\"SPDXID\""))
+  path4:
+    - method: GET
+      path: "/actuator/sbom/application"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"\"ids\"") && response.body.bcontains(b"\"application\"") || response.body.bcontains(b"\"bomFormat\"") && response.body.bcontains(b"\"specVersion\"") || response.body.bcontains(b"\"spdxVersion\"") && response.body.bcontains(b"\"SPDXID\""))
+detail:
+  author: koungq
+  links:
+    - https://docs.spring.io/spring-boot/api/rest/actuator/sbom.html

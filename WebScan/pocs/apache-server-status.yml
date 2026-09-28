@@ -1,0 +1,16 @@
+name: apache-server-status
+groups:
+  path1:
+    - method: GET
+      path: "/server-info"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"Apache Server Status") || response.body.bcontains(b"Apache Server Information")) && response.body.bcontains(b"Server Version")
+  path2:
+    - method: GET
+      path: "/server-status"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"Apache Server Status") || response.body.bcontains(b"Apache Server Information")) && response.body.bcontains(b"Server Version")
+detail:
+  author: thabisocn
+  links:
+    - https://www.exploit-db.com/ghdb/5548

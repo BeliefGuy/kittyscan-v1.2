@@ -1,0 +1,10 @@
+name: springboot-trace
+rules:
+  - method: GET
+    path: "/trace"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"\"timestamp\"") && response.body.bcontains(b"\"info\"") && response.body.bcontains(b"\"method\"") && response.body.bcontains(b"\"path\"")
+detail:
+  author: that_juan_,dwisiswant0,wdahlenb
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#trace

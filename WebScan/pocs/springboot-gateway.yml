@@ -1,0 +1,16 @@
+name: springboot-gateway
+groups:
+  path1:
+    - method: GET
+      path: "/gateway/routes"
+      expression: |
+        response.status == 200 && response.content_type.contains("application/json") && response.body.bcontains(b"predicate") && response.body.bcontains(b"route_id")
+  path2:
+    - method: GET
+      path: "/actuator/gateway/routes"
+      expression: |
+        response.status == 200 && response.content_type.contains("application/json") && response.body.bcontains(b"predicate") && response.body.bcontains(b"route_id")
+detail:
+  author: wdahlenb
+  links:
+    - https://wya.pl/2021/12/20/bring-your-own-ssrf-the-gateway-actuator/

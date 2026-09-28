@@ -1,0 +1,16 @@
+name: springboot-mappings-v2
+groups:
+  path1:
+    - method: GET
+      path: "/mappings"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"mappings") && response.body.bcontains(b"method") && response.body.bcontains(b"produces")
+  path2:
+    - method: GET
+      path: "/actuator/mappings"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"mappings") && response.body.bcontains(b"method") && response.body.bcontains(b"produces")
+detail:
+  author: that_juan_,dwisiswant0,wdahlenb
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#mappings

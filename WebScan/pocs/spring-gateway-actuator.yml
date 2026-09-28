@@ -1,0 +1,16 @@
+name: spring-gateway-actuator
+groups:
+  path1:
+    - method: GET
+      path: "/actuator"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"gateway") && response.body.bcontains(b"actuator") && response.body.bcontains(b"env")
+  path2:
+    - method: GET
+      path: "/api/actuator"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"gateway") && response.body.bcontains(b"actuator") && response.body.bcontains(b"env")
+detail:
+  author: str1am
+  links:
+    - https://spring.io/

@@ -1,0 +1,10 @@
+name: apache-flink-unauth-rce
+rules:
+  - method: GET
+    path: "/jars/"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"files") && response.body.bcontains(b"address")
+detail:
+  author: pikpikcu
+  links:
+    - https://flink.apache.org/

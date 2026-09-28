@@ -1,0 +1,8 @@
+result.txt
+# --- 本地构建产物与测试数据，不入库（2026-09-28 开源清理） ---
+output.txt
+output/
+*.exe
+*.log
+# 第三方 UPX 二进制不入库（本地打包用）
+tools/upx-5.2.1-win64/

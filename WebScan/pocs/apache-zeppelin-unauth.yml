@@ -1,0 +1,10 @@
+name: apache-zeppelin-unauth
+rules:
+  - method: GET
+    path: "/api/security/ticket"
+    expression: |
+      response.status == 200 && response.content_type.contains("application/json") && response.body.bcontains(b"status\":\"OK") && response.body.bcontains(b"\"ticket\":\"anonymous\"")
+detail:
+  author: j4vaovo
+  links:
+    - https://www.adminxe.com/2172.html

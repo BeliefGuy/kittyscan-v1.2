@@ -1,0 +1,11 @@
+name: ueditor-comindex-upload
+rules:
+  - method: GET
+    path: "/Ups/upmore?method=upload_more&classname=article&callback=articleback&ismore=true"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"name=\"uploadtoken\"")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "UEditor comindex 任意文件上传漏洞"

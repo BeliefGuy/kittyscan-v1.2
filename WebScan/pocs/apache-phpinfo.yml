@@ -1,0 +1,10 @@
+name: apache-phpinfo
+rules:
+  - method: GET
+    path: "/phpinfo"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"<title>phpinfo()</title>")
+detail:
+  author: rootplinix
+  links:
+    - https://www.php.net/manual/en/features.commandline.php

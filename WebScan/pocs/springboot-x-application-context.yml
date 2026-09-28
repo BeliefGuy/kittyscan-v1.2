@@ -1,0 +1,10 @@
+name: springboot-x-application-context
+rules:
+  - method: GET
+    path: "/"
+    expression: |
+      response.status == 200 && "X-Application-Context:\\s*\\S+".bmatches(response.headers)
+detail:
+  author: DhiyaneshDK
+  links:
+    - https://github.com/spring-projects/spring-boot/issues/1308

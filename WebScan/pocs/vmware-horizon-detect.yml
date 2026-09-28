@@ -1,0 +1,10 @@
+name: vmware-horizon-detect
+rules:
+  - method: GET
+    path: "/portal/webclient/index.html"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"<title>VMware Horizon</title>")
+detail:
+  author: dhiyaneshDK
+  links:
+    - https://www.vmware.com/products/horizon.html

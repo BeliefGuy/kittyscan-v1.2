@@ -1,0 +1,26 @@
+name: springboot-env-v2
+groups:
+  path1:
+    - method: GET
+      path: "/env"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"applicationConfig") || response.body.bcontains(b"activeProfiles")) && (response.body.bcontains(b"server.port") || response.body.bcontains(b"local.server.port"))
+  path2:
+    - method: GET
+      path: "/actuator/env"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"applicationConfig") || response.body.bcontains(b"activeProfiles")) && (response.body.bcontains(b"server.port") || response.body.bcontains(b"local.server.port"))
+  path3:
+    - method: GET
+      path: "/actuator;/env;"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"applicationConfig") || response.body.bcontains(b"activeProfiles")) && (response.body.bcontains(b"server.port") || response.body.bcontains(b"local.server.port"))
+  path4:
+    - method: GET
+      path: "/message-api/actuator/env"
+      expression: |
+        response.status == 200 && (response.body.bcontains(b"applicationConfig") || response.body.bcontains(b"activeProfiles")) && (response.body.bcontains(b"server.port") || response.body.bcontains(b"local.server.port"))
+detail:
+  author: that_juan_,dwisiswant0,wdahlenb,philippedelteil,stupidfish
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#env

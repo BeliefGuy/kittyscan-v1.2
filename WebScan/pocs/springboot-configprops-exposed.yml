@@ -1,0 +1,16 @@
+name: springboot-configprops-exposed
+groups:
+  path1:
+    - method: GET
+      path: "/configprops"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"org.springframework.boot.actuate") && response.body.bcontains(b"beans") && response.body.bcontains(b"contexts")
+  path2:
+    - method: GET
+      path: "/actuator/configprops"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"org.springframework.boot.actuate") && response.body.bcontains(b"beans") && response.body.bcontains(b"contexts")
+detail:
+  author: that_juan_,dwisiswant0,wdahlenb
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#configprops

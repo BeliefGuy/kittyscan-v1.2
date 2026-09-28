@@ -1,0 +1,13 @@
+name: druid-default-login
+rules:
+  - method: POST
+    path: "/druid/submitLogin"
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    body: "loginUsername=admin&loginPassword=admin"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"success")
+detail:
+  author: pikpikcu,j4vaovo
+  links:
+    - https://github.com/alibaba/druid

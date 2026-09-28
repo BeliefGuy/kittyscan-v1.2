@@ -1,0 +1,16 @@
+name: springboot-metrics
+groups:
+  path1:
+    - method: GET
+      path: "/metrics"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"mem") && response.body.bcontains(b"mem.free") && response.body.bcontains(b"processors") && response.body.bcontains(b"instance.uptime") && response.body.bcontains(b"systemload.average") && response.body.bcontains(b"nonheap.init") && response.body.bcontains(b"heap.committed")
+  path2:
+    - method: GET
+      path: "/actuator/metrics"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"mem") && response.body.bcontains(b"mem.free") && response.body.bcontains(b"processors") && response.body.bcontains(b"instance.uptime") && response.body.bcontains(b"systemload.average") && response.body.bcontains(b"nonheap.init") && response.body.bcontains(b"heap.committed")
+detail:
+  author: pussycat0x
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#metrics

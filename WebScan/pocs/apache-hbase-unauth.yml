@@ -1,0 +1,10 @@
+name: apache-hbase-unauth
+rules:
+  - method: GET
+    path: "/conf"
+    expression: |
+      response.status == 200 && response.body.bcontains(b"<name>hbase.defaults.for.version</name>") && response.body.bcontains(b"<source>hbase-default.xml</source>")
+detail:
+  author: pikpikcu
+  links:
+    - https://hbase.apache.org/

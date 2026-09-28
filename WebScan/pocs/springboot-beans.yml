@@ -1,0 +1,16 @@
+name: springboot-beans
+groups:
+  path1:
+    - method: GET
+      path: "/beans"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"type\"") && response.body.bcontains(b"\"beans\"") && response.body.bcontains(b"\"dependencies\"") && response.body.bcontains(b"\"scope\"")
+  path2:
+    - method: GET
+      path: "/actuator/beans"
+      expression: |
+        response.status == 200 && response.body.bcontains(b"\"type\"") && response.body.bcontains(b"\"beans\"") && response.body.bcontains(b"\"dependencies\"") && response.body.bcontains(b"\"scope\"")
+detail:
+  author: ajaysenr
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#beans

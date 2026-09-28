@@ -1,0 +1,21 @@
+name: springboot-logfile
+groups:
+  path1:
+    - method: GET
+      path: "/logfile"
+      expression: |
+        response.status == 200 && response.content_type.contains("text/plain") && response.body.bcontains(b"springframework.web.HttpRequestMethodNotSupportedException") && response.body.bcontains(b"INFO")
+  path2:
+    - method: GET
+      path: "/actuator/logfile"
+      expression: |
+        response.status == 200 && response.content_type.contains("text/plain") && response.body.bcontains(b"springframework.web.HttpRequestMethodNotSupportedException") && response.body.bcontains(b"INFO")
+  path3:
+    - method: GET
+      path: "/actuators/logfile"
+      expression: |
+        response.status == 200 && response.content_type.contains("text/plain") && response.body.bcontains(b"springframework.web.HttpRequestMethodNotSupportedException") && response.body.bcontains(b"INFO")
+detail:
+  author: DhiyaneshDK
+  links:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#logfile
