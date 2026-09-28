@@ -369,28 +369,14 @@ Examples:
 
 # 5. Demo
 
-`kittyscan.exe -h 192.168.x.x  (Open all functions, ms17010, read network card information)`
+Build script screenshot
 ![](image/1.png)
 
-![](image/4.png)
-
-`kittyscan.exe -h 192.168.x.x -rf id_rsa.pub (Redis write public key)`
+Alive detection screenshot
 ![](image/2.png)
 
-`kittyscan.exe -h 192.168.x.x -c "whoami;id" (ssh command)`
+Vulnerability scan screenshot
 ![](image/3.png)
-
-`kittyscan.exe -h 192.168.x.x -p80 -proxy http://127.0.0.1:8080 (Support for xray poc)`
-![](image/2020-12-12-13-34-44.png)
-
-`kittyscan.exe -h 192.168.x.x -p 139 (Netbios detection, domain control identification, the [+]DC in the figure below represents domain control)`
-![](image/netbios.png)
-
-`kittyscan.exe -h 192.168.x.x/24 -m netbios (Show complete netbios information)`
-![](image/netbios1.png)
-
-`kittyscan.exe -h 192.0.0.0/8 -m icmp (Detect the gateway and several random IPs of each segment C, and count the number of surviving top 10 segments B and C)`
-![img.png](image/live.png)
 
 # 6. Disclaimer
 

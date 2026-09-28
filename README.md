@@ -4,8 +4,8 @@
 
 > **本项目基于 [fscan](https://github.com/shadow1ng/fscan) 1.8.4 二次开发**（MIT License · Copyright (c) 2021 shadow1ng），
 > 保留原作者版权与许可声明，详见 [LICENSE.txt](LICENSE.txt)。
-> 相对原版的全部差异见下方 **第 3 节《相对 fscan 1.8.4 的更新与修复》**，v1.0 / v1.1 阶段的逐项变更明细见 [CHANGELOG_v1.0.md](CHANGELOG_v1.0.md)。
->
+> 相对原版的全部差异见下方 **第 3 节《相对 fscan 1.8.4 的更新与修复》**，v1.0 / v1.1 阶段的逐项变更明细见 [CHANGELOG\_v1.0.md](CHANGELOG_v1.0.md)。
+> 
 > ⚠️ **免责声明**：本工具仅限在**已获明确授权**的环境中使用。禁止对未授权目标进行扫描或攻击；因滥用造成的任何后果由使用者自行承担。
 
 # 1. 简介
@@ -64,7 +64,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 ## 3.1 规模对比
 
 | 项目 | fscan 1.8.4 | kittyscan v1.2 |
-|---|---|---|
+| --- | --- | --- |
 | 服务插件（`Plugins/*.go`） | 24 | **41** |
 | POC（`WebScan/pocs/*.yml`） | 386 | **688** |
 | 默认扫描端口 | 21 | **143** |
@@ -73,7 +73,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 默认行为差异：
 
 | 项目 | fscan 1.8.4 | kittyscan v1.2 |
-|---|---|---|
+| --- | --- | --- |
 | 默认线程数 `-t` | 600 | 100（更隐蔽） |
 | 默认输出文件 `-o` | `result.txt` | `output.txt` |
 | DnsLog 反连检测 | 默认关闭（`-dns` 开启） | **默认开启**（`-nodns` 关闭） |
@@ -107,10 +107,10 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 ### 高危 12 项（第一批）
 
 | # | 问题 | 后果 → 修复 |
-|---|---|---|
+| --- | --- | --- |
 | 1 | Postgres / MySQL / MSSQL 无 IO 超时 | 目标不回包时爆破**永久挂死** → 加 `connect_timeout`/读写超时，blackhole 从 30s+ 挂死变 2.2s 正常结束 |
 | 2 | RDP 爆破成功即**死锁** | `brlist` 改带缓冲，成功/失败两条路径都能正常收尾 |
-| 3 | CIDR `/7`~`/0` 无上限展开 | 大网段直接 OOM → 新增展开上限 65536，超限明确提示并跳过该目标 |
+| 3 | CIDR `/7`\\~`/0` 无上限展开 | 大网段直接 OOM → 新增展开上限 65536，超限明确提示并跳过该目标 |
 | 4 | Linux SYN 校验和伪头部没填 IP | 校验和全错 → 按 RFC793 布局填真实源/目的 IP |
 | 5 | Linux SYN 用 `IPPROTO_RAW` 收包 | 只能发不能收 → 改 `IPPROTO_TCP` 收发共用 |
 | 6 | `-hn` 对 `-hf` 的 `ip:port` 目标失效 | **授权边界**问题：被排除的主机仍被扫 → 过滤移到 `ParseIP` 源头，host/port 分别比对 |
@@ -376,28 +376,15 @@ Web扫描:
 
 # 5. 运行截图
 
-`kittyscan.exe -h 192.168.x.x  (全功能、ms17010、读取网卡信息)`
+编译脚本截图
 ![](image/1.png)
 
-![](image/4.png)
-
-`kittyscan.exe -h 192.168.x.x -rf id_rsa.pub (redis 写公钥)`
+存活探测截图
 ![](image/2.png)
 
-`kittyscan.exe -h 192.168.x.x -c "whoami;id" (ssh 命令)`
+漏洞扫描截图
 ![](image/3.png)
 
-`kittyscan.exe -h 192.168.x.x -p80 -proxy http://127.0.0.1:8080 一键支持xray的poc`
-![](image/2020-12-12-13-34-44.png)
-
-`kittyscan.exe -h 192.168.x.x -p 139 (netbios探测、域控识别,下图的[+]DC代表域控)`
-![](image/netbios.png)
-
-`kittyscan.exe -h 192.168.x.x/24 -m netbios(-m netbios时,才会显示完整的netbios信息)`
-![](image/netbios1.png)
-
-`kittyscan.exe -h 192.0.0.0/8 -m icmp(探测每个C段的网关和数个随机IP,并统计top 10 B、C段存活数量)`
-![img.png](image/live.png)
 
 # 6. 免责声明
 
@@ -413,3 +400,4 @@ Web扫描:
 除非您已充分阅读、完全理解并接受本协议所有条款，否则，请您不要安装并使用本工具。您的使用行为或者您以其他任何明示或者默示方式表示接受本协议的，即视为您已阅读并同意本协议的约束。
 
 [url-docen]: README_EN.md
+
