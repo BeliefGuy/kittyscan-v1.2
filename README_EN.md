@@ -95,6 +95,7 @@ Default behavior differences:
 * **Output enhancement**: tagged colored output; hit POCs print the full request, match expression and response snippet; `-json` emits valid NDJSON
 * **Ports / dictionaries / POCs**: default ports 21 → 143; password dictionary 70 → 100+ (year variants, keyboard sequences, service defaults) plus account dictionaries for 9 new services; POCs 386 → 688 (Spring Actuator, VMware, Nacos, Chinese OA/CMS, ...), and **11 high-false-positive POCs that only checked `status=200` were removed**
 * **Time-based blind SQLi support**: POC rule `response.duration >= seconds`
+* **POC rule short-circuit fields**: `stop_if_match` (stop on match and count the group as hit, the OR-style "found it, wrap up") / `stop_if_mismatch` (stop on mismatch, same as the default sequential-AND behavior), semantics aligned with afrog/xray
 * **Engineering**: `build.py` one-shot multi-platform build (optional UPX, skipped automatically when not installed), `os.Stdout` flushing for real-time output on Windows cmd, brute timeouts tiered (SSH 1s / others 2s)
 * **Graceful Ctrl+C**: stop dispatching → flush in-flight results (8s guard) → print completion stats → exit code 130
 
@@ -165,7 +166,6 @@ Also: `synscan_linux.go` did not even compile on Linux upstream (`Timeval` field
 
 * With `-br N>1`, plugins that report `[vul]` inside a connection may print duplicates when several workers succeed; **use `-br 1` for Redis**
 * The WinRM canary leaves one failed login of a non-existent account in the target's security log (the cost of a false-positive-proof design)
-* POC fields `stop_if_match` / `stop_if_mismatch` are not supported yet (a notice is printed)
 * `-noredis` only skips the write action; unauthorized detection and brute force still run
 
 # 4. Instructions

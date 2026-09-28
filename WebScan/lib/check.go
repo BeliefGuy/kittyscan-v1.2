@@ -149,10 +149,6 @@ func CheckMultiPoc(req *http.Request, pocs []*Poc, workers int) {
 }
 
 func executePoc(oReq *http.Request, p *Poc, ctx *PocContext) (bool, error, string) {
-	// xray 扩展字段 stop_if_match/stop_if_mismatch 暂不实现: 明确提示而不是被 yaml.v2 静默丢弃
-	if hasStopIfField(p) {
-		fmt.Printf("[!] poc %s: 规则字段 stop_if_match/stop_if_mismatch 暂不支持, 已忽略\n", p.Name)
-	}
 	c := NewEnvOption()
 	c.UpdateCompileOptions(p.Set)
 	if len(p.Sets) > 0 {
@@ -309,6 +305,10 @@ func executePoc(oReq *http.Request, p *Poc, ctx *PocContext) (bool, error, strin
 	}
 
 	DealWithRules := func(rules []Rules) bool {
+		// 组内规则按顺序 AND 执行: 任一条未命中/出错即本组失败。
+		// stop_if_mismatch(afrog/xray 语义: 本条未命中就停)与该默认行为一致, 无需额外分支。
+		// stop_if_match(本条命中就停)是显式短路: 命中后跳过后续规则, 以当前状态判定本组命中,
+		// 对应 afrog "找到就收工" 的 OR 型用法(多路径探测任一命中即确认)。
 		successFlag := false
 		for _, rule := range rules {
 			flag, err := DealWithRule(rule)
@@ -321,6 +321,9 @@ func executePoc(oReq *http.Request, p *Poc, ctx *PocContext) (bool, error, strin
 				break
 			}
 			successFlag = true
+			if rule.StopIfMatch {
+				break
+			}
 		}
 		return successFlag
 	}
@@ -484,27 +487,6 @@ func applyOutput(env *cel.Env, variableMap map[string]interface{}, output StrMap
 		variableMap[k] = strings.TrimRight(fmt.Sprintf("%v", out), "\r")
 	}
 	return nil
-}
-
-// hasStopIfField 检查 POC 是否用到暂未实现的 xray 扩展字段
-func hasStopIfField(p *Poc) bool {
-	check := func(rules []Rules) bool {
-		for _, r := range rules {
-			if r.StopIfMatch || r.StopIfMismatch {
-				return true
-			}
-		}
-		return false
-	}
-	if check(p.Rules) {
-		return true
-	}
-	for _, g := range p.Groups {
-		if check(g.Value) {
-			return true
-		}
-	}
-	return false
 }
 
 func newReverse() *Reverse {

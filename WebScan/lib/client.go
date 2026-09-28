@@ -242,7 +242,8 @@ type Rules struct {
 	// '"regex".bsubmatch(response.body/raw_header)', 其余是 search["group"] 等变量赋值,
 	// 求值结果写入 variableMap 供后续规则 {{var}} 替换。此前 yaml.v2 非严格反序列化会把它整段丢掉。
 	Output StrMap `yaml:"output"`
-	// xray 扩展字段: before_sleep 已实现(请求前先睡 N 秒); stop_if_* 见 WebScan/lib/check.go 的提示
+	// xray/afrog 扩展字段: before_sleep 请求前先睡 N 秒; stop_if_match/stop_if_mismatch
+	// 为规则级短路开关, 语义与实现见 check.go 的 DealWithRules
 	BeforeSleep    int  `yaml:"before_sleep"`
 	StopIfMatch    bool `yaml:"stop_if_match"`
 	StopIfMismatch bool `yaml:"stop_if_mismatch"`

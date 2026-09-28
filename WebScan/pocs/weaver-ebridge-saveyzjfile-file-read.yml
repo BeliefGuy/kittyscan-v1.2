@@ -8,7 +8,7 @@ groups:
       output:
         search: '"\\\"id\\\"\\:\\\"(?P<var>.+?)\\\"\\,".bsubmatch(response.body)'
         var: search["var"]
-      stop_if_match: true
+      stop_if_mismatch: true
     - method: GET
       before_sleep: 2
       path: "/file/fileNoLogin/{{var}}"

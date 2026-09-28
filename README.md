@@ -96,6 +96,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 - **输出增强**：`[port]/[web]/[info]/[vul]` 标签化彩色输出；POC 命中输出完整请求、Match 表达式与 Response 片段；`-json` 为合法 NDJSON
 - **端口 / 字典 / POC 扩展**：默认端口 21 → 143；密码字典 70 → 100+（年份变体、键盘序列、服务默认口令等）+ 9 个新服务的账号字典；POC 386 → 688（含 Spring Actuator、VMware、Nacos、国产 OA/CMS 等），并**清理 11 个只判 `status=200` 的高误报 POC**
 - **时间盲注支持**：POC 规则 `response.duration >= 秒数`
+- **POC 规则短路字段**：`stop_if_match`（本条命中即停并判定本组命中，OR 型"找到就收工"）/ `stop_if_mismatch`（本条不命中即停，与顺序 AND 链默认行为一致），语义对齐 afrog/xray
 - **工程化**：`build.py` 一键多平台构建（UPX 压缩可选，未安装自动跳过）、`os.Stdout` 实时刷新、爆破超时分级（SSH 1s / 其他 2s）
 - **Ctrl+C 优雅退出**：停止派发新任务 → 在途结果落盘（8s 兜底）→ 打印完成统计 → 退出码 130
 
@@ -166,7 +167,6 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 
 - `-br N>1` 时，`[vul]` 在连接内的插件若多 worker 同时成功可能输出多条；**Redis 建议 `-br 1`**
 - WinRM canary 检测会在目标安全日志留下 1 次不存在账号的失败登录（防误报的设计代价）
-- POC 的 `stop_if_match` / `stop_if_mismatch` 字段暂不支持（仅打印提示）
 - `-noredis` 只跳过写入动作，未授权检测与爆破照常执行
 
 # 4. 使用说明
