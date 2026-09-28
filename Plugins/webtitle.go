@@ -40,7 +40,7 @@ func WebTitle(info *common.HostInfo) error {
 		// 302 跳转派生的附加 POC 基准(默认开启, -no302base 关闭), 见 pocBases。
 		bases := pocBases(origUrl, info.Url)
 		if len(bases) > 1 && !common.Silent {
-			fmt.Printf("[+] 302跳转, 追加POC基准: %s\n", strings.Join(bases[1:], ", "))
+			fmt.Printf("[+] 追加POC基准: %s\n", strings.Join(bases[1:], ", "))
 		}
 		for _, base := range bases {
 			WebScan.WebScanBase(info, base)
@@ -65,49 +65,64 @@ func sameHost(u1, u2 string) bool {
 }
 
 // pocBases 计算一次 302 跳转探测后要执行 POC 扫描的基准 URL 列表。
-// 语义(2026-09-28 设定, 默认开启, -no302base 关闭):
-//  1. 原始目标 host 始终作为基准(与历史一致: 只取 scheme://host, 路径不参与拼接);
-//  2. 同 host 且跳转进入子目录 → 追加该目录前缀(如 http://h/dev), 规则路径拼在其后;
-//     跳到根级文件(/login.html)则不追加;
-//  3. 跨 host → 追加新 host 的根(忽略其路径深度, 如 http://2.2.2.2);
-//  4. 同 host 时 host 保持原始、协议采用跳转后的可用协议(可能 http→https 升级,
-//     与历史行为一致, 避免降回原协议因 301 不被跟随而漏报);
-//  5. -no302base 时只返回基准 1(仍保留第 4 条协议修正, 它不增加请求数)。
+// 语义(2026-09-28 设定, 第 1/2 条默认且不可关, 第 3/4 条由 -no302base 控制):
+//  1. 原始根目录: scheme://host(与历史一致, 根之外的路径不再整体丢弃);
+//  2. 原始 URL 自身子目录: path.Dir(原始路径), 非根时追加 —— 如
+//     -u http://h/app/dev/api/login.html → http://h 与 http://h/app/dev/api;
+//     这条不是 302 派生的, 关闭 -no302base 也保留;
+//  3. 同 host 跳子目录 → 追加该目录前缀(如 http://h/dev); 跳到根级文件(/login.html)不追加;
+//  4. 跨 host → 追加新 host 的根(忽略其路径深度, 如 http://2.2.2.2);
+//  5. 同 host 时协议采用跳转后的可用协议(可能 http→https 升级), 避免降回原协议
+//     因 301 不被跟随而漏报;
+//  6. -no302base 时只保留第 1、2 条(第 5 条协议修正仍生效)。
 //
-// 注意跨 host 时会向跳转后的外部主机发 POC 请求, 请自行确认其在授权范围内。
+// 注意第 4 条会向跳转后的外部主机发 POC 请求, 请自行确认其在授权范围内。
 func pocBases(origUrl, jumpUrl string) []string {
 	uo, err := url.Parse(origUrl)
 	if err != nil || uo.Host == "" {
 		return []string{origUrl}
 	}
-	// 历史行为: 基准只取 scheme://host, 丢弃路径
-	base := uo.Scheme + "://" + uo.Host
-	if jumpUrl == "" || jumpUrl == origUrl {
-		return []string{base}
+	// 同 host 跳转可能升级协议(http→https): 原始基准一并改用可用协议, 避免降回
+	// 原协议因 301 不被跟随而漏报; 跨 host 时原始基准保持原协议。
+	sch := uo.Scheme
+	var uj *url.URL
+	if jumpUrl != "" && jumpUrl != origUrl {
+		if p, e := url.Parse(jumpUrl); e == nil && p.Host != "" {
+			uj = p
+			if sameHost(origUrl, jumpUrl) && p.Scheme != uo.Scheme {
+				sch = p.Scheme
+			}
+		}
 	}
-	uj, e := url.Parse(jumpUrl)
-	if e != nil || uj.Host == "" {
-		return []string{base}
+	root := sch + "://" + uo.Host
+	// 1) 原始根(历史行为); 2) 原始 URL 自身子目录 —— 非 302 派生, 永远参与,
+	//    -no302base 不影响这条(例: .../app/dev/api/login.html → / 与 /app/dev/api/)
+	bases := []string{root}
+	if d := path.Dir(uo.Path); d != "" && d != "/" && d != "." {
+		bases = append(bases, root+d)
+	}
+	if uj == nil || common.No302Base {
+		return bases
 	}
 	if !sameHost(origUrl, jumpUrl) {
-		// 跨 host: 关闭时只打原始; 开启时追加新 host 的根(不带路径)
-		if common.No302Base {
-			return []string{base}
+		// 3) 跨 host: 追加新 host 的根(忽略其路径深度)
+		return appendUnique(bases, uj.Scheme+"://"+uj.Host)
+	}
+	// 4) 同 host 跳子目录: 追加该目录前缀
+	if d := path.Dir(uj.Path); d != "" && d != "/" && d != "." {
+		return appendUnique(bases, uj.Scheme+"://"+uj.Host+d)
+	}
+	return bases
+}
+
+// appendUnique 去重追加基准(同 host 跳回原目录时避免重复扫描)
+func appendUnique(list []string, b string) []string {
+	for _, x := range list {
+		if x == b {
+			return list
 		}
-		return []string{base, uj.Scheme + "://" + uj.Host}
 	}
-	// 同 host: host 保持原始, 协议采用跳转后的可用协议(可能 http→https 升级,
-	// 与历史行为一致, 避免降回原协议因 301 不被跟随而漏报)
-	base = uj.Scheme + "://" + uo.Host
-	if common.No302Base {
-		return []string{base}
-	}
-	// path.Dir: "/dev/x" → "/dev", "/x" → "/", "" → "."
-	jumpDir := path.Dir(uj.Path)
-	if jumpDir != "" && jumpDir != "/" && jumpDir != "." {
-		return []string{base, uj.Scheme + "://" + uj.Host + jumpDir}
-	}
-	return []string{base}
+	return append(list, b)
 }
 
 // EnsureUrl 补齐 info.Url (协议://host:port), 只做协议判断, 不发起HTTP请求。

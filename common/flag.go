@@ -224,8 +224,8 @@ Web扫描:
   -dns         使用DnsLog检测无回显漏洞（默认开启）
   -nodns       禁用DnsLog反连检测
   -no302base   关闭302跳转派生的附加POC基准（默认开启）
-                开启时: 原始host必打 + 同域跳子目录时追加该目录前缀 + 跨域时追加新host根目录
-                关闭时: 仅打原始host
+                始终打: 原始根 + 原始URL自身子目录（.../app/dev/api/login.html → http://h/ 与 http://h/app/dev/api/）
+                开启时另追加: 同域跳子目录的目录前缀 + 跨域新host的根（关闭则只保留上面两条）
   -ceye-key string  覆盖ceye反连API Key（留空则使用内置默认值）
                 例: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  覆盖ceye二级域名（留空则使用内置默认值）
@@ -373,8 +373,8 @@ Web Scan:
   -dns         DnsLog blind detection (default: enabled)
   -nodns       Disable DnsLog detection
   -no302base   Disable redirect-derived extra POC bases (default: enabled)
-                Enabled: original host always + same-host subdir prefix + cross-host new root
-                Disabled: original host only
+                Always scanned: original root + the original URL's own directory (.../app/dev/api/login.html -> http://h/ and http://h/app/dev/api/)
+                When enabled also adds: same-host jump subdir prefix + cross-host new root (disabled = only the two above)
   -ceye-key string  Override ceye API key for reverse connection (empty = built-in default)
                 e.g.: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  Override ceye subdomain for reverse connection (empty = built-in default)

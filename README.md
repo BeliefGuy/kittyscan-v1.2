@@ -83,7 +83,30 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 
 ## 3.2 新增功能
 
-- **15 个新服务插件**：Elasticsearch、Tomcat、WebLogic、ActiveMQ、VNC、SVN、LDAP、Zookeeper、Kafka、RabbitMQ、Rsync、Telnet、SNMP、RTSP、**WinRM（完整 NTLM 口令爆破）**
+### 新增服务插件（原版 24 个 → 41 个）
+
+> 下列插件原版 fscan 1.8.4 均不具备。扩展目的是把常见高价值中间件、数据库、存储与远程管理服务纳入**未授权检测与弱口令爆破**的覆盖范围。
+
+| 插件（端口） | 功能 | 扩展目的 |
+| --- | --- | --- |
+| Elasticsearch (9200) | 未授权访问检测 + Basic Auth 口令爆破 | 云原生/日志存储未授权是重灾区 |
+| Tomcat (8080) | Manager Basic Auth 口令爆破 | 高频 Java 中间件弱口令 |
+| WebLogic (7001) | 控制台表单登录爆破 | 国产高价值 Java 中间件 |
+| ActiveMQ (8161/61616) | 未授权检测 + 管理台口令爆破 | 消息队列未授权与弱口令 |
+| VNC (5900) | RFB 协议 DES 加密口令爆破 | 远程桌面弱口令 |
+| SVN (3690) | HTTP OPTIONS 探测 + Basic Auth 爆破 | 源码泄露入口 |
+| LDAP (389/5000/636) | 原生 LDAP Bind 口令爆破 | 域环境凭据碰撞 |
+| Zookeeper (2181) | 四字命令 `ruok` 健康/未授权检测 | 分布式协调服务未授权 |
+| Kafka (9092) | Metadata 请求未授权探测 | 消息队列未授权 |
+| RabbitMQ (15672) | HTTP API `/api/overview` 未授权检测 | 管理台未授权 |
+| Rsync (873) | 协议握手、模块列表枚举与口令爆破 | 备份/源码泄露 |
+| Telnet (23) | TCP 连接 + 口令爆破 | 明文协议弱口令 |
+| SNMP (161/UDP) | UDP GET sysDescr，community 爆破 | 网络设备信息泄露 |
+| RTSP (554) | 流媒体协议探测与口令爆破 | 摄像头/流媒体弱口令 |
+| WinRM (5985/5986) | WS-Man + 完整 NTLM Type1/2/3 口令爆破 | Windows 远程管理弱口令（带 canary 防误报） |
+
+### 其他新增能力
+
 - **纯指纹识别模式**：`-m finger` / `-m fingeronly`（只出指纹，不跑 POC、不爆破）
 - **SYN 半连接扫描**：`-syn`（Linux root 原始套接字，其余环境自动降级 TCP Connect）
 - **中英文帮助**：`-help` / `-hen`，每个参数带示例
@@ -92,77 +115,34 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
   - `-proxy http://...` → 仅 HTTP（Web/POC）出口，端口扫描与爆破等 TCP 流量直连；
   - `-proxy socks5://...` → 全局代理，所有 TCP 拨号与 Web/POC 请求均走代理（自动跳过 ICMP 探测）；
   - 支持 `host:port`、纯端口、`-proxy 1`（Burp）、`-proxy 2`（SOCKS5）等快捷写法；**原 `-socks5` 已并入本参数，老脚本需改写为 `-proxy socks5://...`**
-- **`-br` 爆破并发扩展到全部爆破模块**（原版仅 RDP 生效，实测约 3.6 倍提速）
-- **输出增强**：`[port]/[web]/[info]/[vul]` 标签化彩色输出；POC 命中输出完整请求、Match 表达式与 Response 片段；`-json` 为合法 NDJSON
-- **端口 / 字典 / POC 扩展**：默认端口 21 → 143；密码字典 70 → 100+（年份变体、键盘序列、服务默认口令等）+ 9 个新服务的账号字典；POC 386 → 688（含 Spring Actuator、VMware、Nacos、国产 OA/CMS 等），并**清理 11 个只判 `status=200` 的高误报 POC**
+- **输出增强**：`[port]/[web]/[info]/[vul]` 标签化彩色输出；POC 命中输出完整请求、Match 表达式与 Response 片段
+- **端口 / 字典 / POC 扩展**：默认端口 21 → 143；密码字典 70 → 100+（年份变体、键盘序列、服务默认口令等）+ 9 个新服务的账号字典；POC 386 → 688（含 Spring Actuator、VMware、Nacos、国产 OA/CMS 等）
 - **时间盲注支持**：POC 规则 `response.duration >= 秒数`
+- **POC 字段扩展**：支持 `response.raw_header`（原始响应头）与 `output` 变量提取，供 POC 做更细匹配与二次请求取值
 - **POC 规则短路字段**：`stop_if_match`（本条命中即停并判定本组命中，OR 型"找到就收工"）/ `stop_if_mismatch`（本条不命中即停，与顺序 AND 链默认行为一致），语义对齐 afrog/xray
-- **302 跳转派生 POC 基准**（默认开启，`-no302base` 关闭）：原始 host 必打；同域跳子目录则追加该目录前缀（如 `http://host/dev/`），跳根级文件（`/login.html`）不追加；跨域则追加新 host 的根（忽略其路径深度）
-- **工程化**：`build.py` 一键多平台构建（UPX 压缩可选，未安装自动跳过）、`os.Stdout` 实时刷新、爆破超时分级（SSH 1s / 其他 2s）
+- **POC 基准支持路径前缀**：原始 URL 自带子目录时，根与该目录都会作为基准 —— `-u http://h/app/dev/api/login.html` 会打 `http://h/` 与 `http://h/app/dev/api/`（该条不受 `-no302base` 影响）
+- **302 跳转派生 POC 基准**（默认开启，`-no302base` 关闭）：在上述两条基准之外，同域跳子目录则追加该目录前缀（如 `http://host/dev/`），跳根级文件（`/login.html`）不追加；跨域则追加新 host 的根（忽略其路径深度）
 - **Ctrl+C 优雅退出**：停止派发新任务 → 在途结果落盘（8s 兜底）→ 打印完成统计 → 退出码 130
+- **工程化**：`build.py` 一键多平台构建（UPX 压缩可选，未安装自动跳过）
 
-## 3.3 修复的 Bug
+## 3.3 相对 fscan 1.8.4 的修复与优化
 
-代码审查共发现 **112 个问题（12 high / 46 medium / 54 low）**，逐条复核后分 9 批修复；下表为代表性条目。
+> 下表以原版 1.8.4 为基准**集中列示**（新增插件自身的实现细节不在此列，其功能与目的见 3.2）。
 
-### 高危 12 项（第一批）
-
-| # | 问题 | 后果 → 修复 |
-| --- | --- | --- |
-| 1 | Postgres / MySQL / MSSQL 无 IO 超时 | 目标不回包时爆破**永久挂死** → 加 `connect_timeout`/读写超时，blackhole 从 30s+ 挂死变 2.2s 正常结束 |
-| 2 | RDP 爆破成功即**死锁** | `brlist` 改带缓冲，成功/失败两条路径都能正常收尾 |
-| 3 | CIDR `/7`\\~`/0` 无上限展开 | 大网段直接 OOM → 新增展开上限 65536，超限明确提示并跳过该目标 |
-| 4 | Linux SYN 校验和伪头部没填 IP | 校验和全错 → 按 RFC793 布局填真实源/目的 IP |
-| 5 | Linux SYN 用 `IPPROTO_RAW` 收包 | 只能发不能收 → 改 `IPPROTO_TCP` 收发共用 |
-| 6 | `-hn` 对 `-hf` 的 `ip:port` 目标失效 | **授权边界**问题：被排除的主机仍被扫 → 过滤移到 `ParseIP` 源头，host/port 分别比对 |
-| 7 | 302 跨域跳转把 POC 打到外部域名 | **越界 + 漏验原始目标** → 改为显式计算 POC 基准：原始 host 必打 + 同域跳子目录追加该目录前缀 + 跨域追加新 host 的根（`-no302base` 可关闭追加） |
-| 8 | POC 响应 header 小写键取值报 `no such key` | 约 30 个 POC 永久失效（含 Nacos）→ 响应头双写 canonical + 小写两套键，规则求值错误不再被吞 |
-| 9 | LDAP Bind 判定 BER 字节位全错 | 100% 漏报 → 重写 BER 解析 |
-| 10 | Kafka 报文 topics 少 2 字节且未读满 | 100% 漏报 → 长度字段补足 + `io.ReadFull` |
-| 11 | Rsync 从不发送密码 | 100% 漏报 → 按 rsync 官方源码重写认证（MD4/MD5 digest），未授权判据同步重构防误报 |
-| 12 | Redis `-rf`/`-rs` 出错时跳过 recoverdb | **破坏性**：可能覆盖目标真实公钥 → 恢复动作改 `defer` 覆盖全部返回路径 |
-
-另有：`synscan_linux.go` 原版在 Linux 上根本编译不过（`Timeval` 字段宽度）；ICMP 一对多映射导致 `localhost`+`127.0.0.1` 只报一个存活。
-
-### 中危 42 项（第二批，摘要）
-
-- `response.raw_header` / `output` 字段缺失导致 **8 个 POC 长期失效（含用友 NC 3 个）** → 补齐字段支持，救回全部死 POC
-- `-json` 输出双坏、`-silent` 完全失效、`-pa` 破坏端口收敛、`-m hostname/wmiinfo/smbinfo` 死模式
-- 5985 端口被误映射为 LDAP、VNC 3.3 版本死分支、ActiveMQ 打错端口
-- 时间盲注 POC 因 5s 超时必失败、fcgi 系统性误报、`-br` 仅 RDP 生效 等
-
-### WinRM（新增模块自身的三轮修复）
-
-- 新增完整 NTLM 爆破插件 `Plugins/winrm.go`（约 600 行，Type1/Type2/Type3 完整流程）
-- **正确口令不出 `[vul]` 的两道门槛**：① Type1 缺 `NTLMSSP_NEGOTIATE_SEAL(0x20)`（逐位二分证实是充要条件，补 Type3 AV/MIC 无效）② 认证成功后 Identify 报文返回 500（第 3 段改发空报文 → 200）
-- 连接 pin 修复使连接失败率 **87% → 0**；公网 20000 次弱口令验证无误报
-
-### 并发与稳定性（收尾批次）
-
-- `-race` 实测捕获 **727 个 DATA RACE**（grdp glog 全局写、`signal` 自旋读写 ×2、`*num` 锁内外）→ 修复后 5 轮复测全部为 0
-- RDP 爆破死锁经 Windows 靶机实测：正确口令出 `[vul]`、错误口令无误报、`-br 2` 并发秒退
-- Ctrl+C 退出竞态、原子变量、随机源、参数警告、NetBIOS 读满等 low 项
-
-### Redis（专项）
-
-- RESP 解析字节错位 → `getconfig` 恒失败、`-rf`/`-rs` 实际不可达、错误口令回显 `<nil>`
-- 改为无前缀契约解析 + `-` 应答转真实错误 + 空数组/错误回复不再写回垃圾配置；Kali Redis 7.0.15 全矩阵验证通过（含写公钥/写 cron 后配置恢复）
-
-### 其他修复
-
-- `-nobr` 语义修正：不再隐含 `-nopoc`，漏洞检测照常执行
-- `-rf` / `-sshkey` / `-pocpath` 支持带 BOM/UTF-16 编码的输入文件
-- 参数解析失败由静默改为**报错并以退出码 1 结束**；`-silent` 下的漏网打印全部收敛
-- GBK 页面中文指纹不命中、`-proxy host:port` 被拼成 `http://127.0.0.1:127.0.0.1:8080`、SYN 并发漏报（靶场 10/10 复验）等
-- 指纹与 POC 质量：依据 nuclei-templates（23.5 万模板）**收紧 5 条易误报指纹、复活 3 条死规则**；telnet/snmp/tomcat 判定修正；删除 11 个高误报 POC
+| 类别 | 修复与优化 |
+| --- | --- |
+| 稳定性 | Postgres/MySQL/MSSQL 无 IO 超时 → 目标不回包时爆破**永久挂死**（实测 blackhole 30s+ → 2.2s 正常退出）；RDP 爆破成功即死锁（`brlist` 改带缓冲，成功/失败路径都能收尾）；RDP 连接路径并发 DATA RACE → `-race` 复测归零（修复前 727 个）；CIDR `/7`\\~`/0` 无上限展开导致 OOM → 上限 65536 + 明确提示并跳过该目标 |
+| 漏报与越界 | POC 响应 header 键大小写不一致 → `no such key` 使约 30 个 POC 永久失效（含 Nacos）→ canonical/小写双写；302 跨域把 POC 打到外部域名且漏掉原始目标 → 基准显式计算（见 3.2）；`-hn` 对 `-hf` 的 `ip:port` 目标失效（授权边界）→ 过滤前移到 `ParseIP` 源头；`-pa` 追加端口破坏端口收敛；ICMP 一对多映射使 `localhost` 与 `127.0.0.1` 只报一个存活；GBK 页面中文指纹不命中（原版解码发生在指纹注入之后）→ 解码提前到注入之前；`-br` 原版仅 RDP 生效 → 扩展到全部爆破模块（实测约 3.6 倍提速）；`-nobr` 由连带跳过漏洞检测改为只跳爆破 |
+| 误报控制 | fcgi 系统性误报判定修正；指纹规则收紧 5 条（依据 nuclei 模板）并复活 3 条失效规则；删除 11 个只判 `status=200` 的高误报 POC；Redis `-rf`/`-rs` 写入失败时跳过配置恢复 → 可能覆盖目标真实公钥，恢复改为 `defer` 覆盖全部返回路径 |
+| 输出与交互 | `-silent` 原版仅 1 处生效点 → 现全局 17 处收敛（状态行/加载汇总均静默）；`-json` 输出保证为合法 NDJSON；非法参数与非法目标由静默改为明确报错；`os.Stdout` 实时刷新（原版 Windows 下输出卡顿）；`-rf`/`-sshkey`/`-pocpath` 支持 BOM/UTF-16 编码文件；爆破超时分级（SSH 1s / 其他 2s） |
 
 ## 3.4 验证情况
 
-- 6 组并行代码审查 112 个问题，复核剔除 4 条误报，已修复 9 批并逐批回归
-- `-race`（CGO + GCC）：修复前 10 轮捕获 727 个竞态 → 修复后 5 轮全 0
-- 真实环境 16 项验证（公网资产 + Kali 靶场）15 项闭环
-- Windows 靶机实测：RDP 死锁/正确口令、WinRM 正确口令 `[vul]` 与并发、无误报
 - 每批改动均通过 **Windows + `GOOS=linux` 双平台编译**，`gofmt` / `go vet` 干净
+- `-race`（CGO + GCC）：RDP 路径竞态修复后 **5 轮复测全部为 0**
+- 真实环境验证：公网资产与 Kali 靶场逐项实测（协议类逐项对拍）
+- 靶机实测：Windows 靶机 RDP / WinRM 正确口令与并发（正确口令出 `[vul]`、错误口令无误报）；Kali Redis 全矩阵（写公钥 / 写 cron 后目标配置恢复）
+- 本地假靶场回归：POC 基准、代理作用域、规则短路字段、302 基准等行为逐例验证
 
 ## 3.5 已知限制
 
@@ -280,8 +260,8 @@ Web扫描:
   -dns         使用DnsLog检测无回显漏洞（默认开启）
   -nodns       禁用DnsLog反连检测
   -no302base   关闭302跳转派生的附加POC基准（默认开启）
-                开启时: 原始host必打 + 同域跳子目录时追加该目录前缀 + 跨域时追加新host根目录
-                关闭时: 仅打原始host
+                始终打: 原始根 + 原始URL自身子目录（.../app/dev/api/login.html → http://h/ 与 http://h/app/dev/api/）
+                开启时另追加: 同域跳子目录的目录前缀 + 跨域新host的根（关闭则只保留上面两条）
   -ceye-key string  覆盖ceye反连API Key（留空则使用内置默认值）
                 例: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  覆盖ceye二级域名（留空则使用内置默认值）

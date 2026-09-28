@@ -82,7 +82,30 @@ Default behavior differences:
 
 ## 3.2 New features
 
-* **15 new service plugins**: Elasticsearch, Tomcat, WebLogic, ActiveMQ, VNC, SVN, LDAP, Zookeeper, Kafka, RabbitMQ, Rsync, Telnet, SNMP, RTSP, **WinRM (full NTLM password brute force)**
+### New service plugins (24 → 41)
+
+> None of the plugins below exist in upstream fscan 1.8.4. They extend coverage so that common high-value middleware, databases, storage and remote-management services are checked for **unauthorized access and weak credentials**.
+
+| Plugin (port) | Function | Why it was added |
+| --- | --- | --- |
+| Elasticsearch (9200) | Unauthorized access check + Basic Auth brute force | Cloud-native / log stores are frequently left open |
+| Tomcat (8080) | Manager Basic Auth brute force | Very common Java middleware weak passwords |
+| WebLogic (7001) | Console form-login brute force | High-value Chinese Java middleware |
+| ActiveMQ (8161/61616) | Unauthorized check + console brute force | Message-queue exposure and weak passwords |
+| VNC (5900) | RFB protocol DES-encrypted brute force | Remote desktop weak passwords |
+| SVN (3690) | HTTP OPTIONS probe + Basic Auth brute force | Source-code disclosure entry point |
+| LDAP (389/5000/636) | Native LDAP Bind brute force | Credential spraying in domain environments |
+| Zookeeper (2181) | `ruok` four-letter command / unauthorized check | Distributed-coordination exposure |
+| Kafka (9092) | Metadata request unauthorized check | Message-queue exposure |
+| RabbitMQ (15672) | HTTP API `/api/overview` unauthorized check | Management console exposure |
+| Rsync (873) | Protocol handshake, module listing and brute force | Backup / source-code leakage |
+| Telnet (23) | TCP connect + brute force | Weak passwords on plaintext protocols |
+| SNMP (161/UDP) | UDP GET sysDescr, community brute force | Network-device information leakage |
+| RTSP (554) | Streaming protocol probe and brute force | Camera / streaming weak passwords |
+| WinRM (5985/5986) | WS-Man + full NTLM Type1/2/3 brute force | Windows remote-management weak passwords (canary-guarded against false positives) |
+
+### Other new capabilities
+
 * **Fingerprint-only modes**: `-m finger` / `-m fingeronly` (fingerprints only, no POC, no brute force)
 * **SYN half-open scanning**: `-syn` (raw sockets on Linux root, otherwise automatically falls back to TCP connect)
 * **Chinese / English help**: `-help` / `-hen`, every flag comes with examples
@@ -91,77 +114,34 @@ Default behavior differences:
   * `-proxy http://...` → HTTP (Web/POC) egress only; port scanning and brute-force TCP traffic stays direct;
   * `-proxy socks5://...` → global proxy; all TCP dials and web/POC requests go through it (ICMP probing is skipped automatically);
   * also accepts `host:port`, bare port, `-proxy 1` (Burp) and `-proxy 2` (SOCKS5) shortcuts; **the former `-socks5` flag was merged into this flag — rewrite old scripts as `-proxy socks5://...`**
-* **`-br` brute concurrency extended to every brute module** (upstream only honored it for RDP; ~3.6x speedup measured)
-* **Output enhancement**: tagged colored output; hit POCs print the full request, match expression and response snippet; `-json` emits valid NDJSON
-* **Ports / dictionaries / POCs**: default ports 21 → 143; password dictionary 70 → 100+ (year variants, keyboard sequences, service defaults) plus account dictionaries for 9 new services; POCs 386 → 688 (Spring Actuator, VMware, Nacos, Chinese OA/CMS, ...), and **11 high-false-positive POCs that only checked `status=200` were removed**
+* **Output enhancement**: tagged colored output; hit POCs print the full request, match expression and response snippet
+* **Ports / dictionaries / POCs**: default ports 21 → 143; password dictionary 70 → 100+ (year variants, keyboard sequences, service defaults) plus account dictionaries for 9 new services; POCs 386 → 688 (Spring Actuator, VMware, Nacos, Chinese OA/CMS, ...)
 * **Time-based blind SQLi support**: POC rule `response.duration >= seconds`
+* **POC field extensions**: `response.raw_header` (raw response headers) and `output` variable extraction, so POCs can match more precisely and pull values into follow-up requests
 * **POC rule short-circuit fields**: `stop_if_match` (stop on match and count the group as hit, the OR-style "found it, wrap up") / `stop_if_mismatch` (stop on mismatch, same as the default sequential-AND behavior), semantics aligned with afrog/xray
-* **Redirect-derived POC bases** (enabled by default, disable with `-no302base`): original host always scanned; a same-host jump into a subdirectory adds that directory prefix (e.g. `http://host/dev/`), a jump to a root-level file adds nothing; a cross-host jump adds the new host's root only (its path depth ignored)
-* **Engineering**: `build.py` one-shot multi-platform build (optional UPX, skipped automatically when not installed), `os.Stdout` flushing for real-time output on Windows cmd, brute timeouts tiered (SSH 1s / others 2s)
+* **POC bases support a path prefix**: when the original URL carries a subdirectory, both the root and that directory are scanned — `-u http://h/app/dev/api/login.html` hits `http://h/` **and** `http://h/app/dev/api/` (this part is unaffected by `-no302base`)
+* **Redirect-derived POC bases** (enabled by default, disable with `-no302base`): on top of the two bases above, a same-host jump into a subdirectory adds that directory prefix (e.g. `http://host/dev/`), a jump to a root-level file adds nothing; a cross-host jump adds the new host's root only (its path depth ignored)
 * **Graceful Ctrl+C**: stop dispatching → flush in-flight results (8s guard) → print completion stats → exit code 130
+* **Engineering**: `build.py` one-shot multi-platform build (optional UPX, skipped automatically when not installed)
 
-## 3.3 Bug fixes
+## 3.3 Fixes and improvements vs fscan 1.8.4
 
-The code review found **112 issues (12 high / 46 medium / 54 low)**; after verification 4 were false positives, and the rest were fixed in 9 batches. Highlights:
+> The table below is a consolidated list measured against upstream 1.8.4 (implementation details of the new plugins are out of scope here — see 3.2 for their function and purpose).
 
-### 12 high-severity issues (batch 1)
-
-| # | Issue | Consequence → Fix |
-|---|---|---|
-| 1 | Postgres / MySQL / MSSQL had no IO timeout | Brute force **hung forever** on unresponsive targets → added `connect_timeout` / read-write timeouts; blackhole went from 30s+ hang to a clean 2.2s exit |
-| 2 | RDP brute force **deadlocked** on success | `brlist` made buffered so both success and failure paths finish properly |
-| 3 | CIDR `/7`~`/0` expanded without limit | Huge ranges caused OOM → expansion cap of 65536 with an explicit message, target skipped |
-| 4 | Linux SYN checksum pseudo-header had no IPs | All checksums wrong → real src/dst IPs filled per RFC793 |
-| 5 | Linux SYN received with `IPPROTO_RAW` | Could only send, never receive → shared `IPPROTO_TCP` socket |
-| 6 | `-hn` ignored `ip:port` targets from `-hf` | **Authorization boundary**: excluded hosts were still scanned → filtering moved to `ParseIP` source, host/port compared separately |
-| 7 | Cross-host 302 redirect sent the POC to an external domain | **Out-of-scope + original missed** → bases now computed explicitly: original host always + same-host subdir prefix + cross-host new root (`-no302base` disables the additions) |
-| 8 | Lowercase POC response-header keys raised `no such key` | ~30 POCs permanently broken (incl. Nacos) → headers written under both canonical and lowercase keys, rule evaluation errors no longer swallowed |
-| 9 | LDAP Bind result parsed with wrong BER offsets | 100% missed detections → BER parsing rewritten |
-| 10 | Kafka topic packet 2 bytes short and not fully read | 100% missed detections → length field padded + `io.ReadFull` |
-| 11 | Rsync never sent the password | 100% missed detections → authentication rewritten per upstream rsync source (MD4/MD5 digest), unauthorized check rebuilt to avoid false positives |
-| 12 | Redis `-rf`/`-rs` skipped recoverdb on errors | **Destructive**: could overwrite the target's real public key → recovery moved into `defer` covering every return path |
-
-Also: `synscan_linux.go` did not even compile on Linux upstream (`Timeval` field width); ICMP one-to-many mapping reported only one alive host for `localhost` + `127.0.0.1`.
-
-### 42 medium issues (batch 2, summary)
-
-* Missing `response.raw_header` / `output` fields left **8 POCs dead forever (incl. 3 for yonyou NC)** → implemented, all recovered
-* Broken `-json` output, completely non-functional `-silent`, `-pa` breaking port convergence, dead `-m hostname/wmiinfo/smbinfo` modes
-* 5985 wrongly mapped to LDAP, dead VNC 3.3 branch, ActiveMQ hitting the wrong port
-* Time-based blind POCs guaranteed to fail due to the 5s timeout, systematic fcgi false positives, `-br` only effective for RDP, etc.
-
-### WinRM (new module, three rounds of fixes)
-
-* New full NTLM brute-force plugin `Plugins/winrm.go` (~600 lines, complete Type1/Type2/Type3 flow)
-* **Two gates that blocked `[vul]` for correct passwords**: ① Type1 missing `NTLMSSP_NEGOTIATE_SEAL(0x20)` (proved necessary and sufficient by bit-by-bit bisection; adding Type3 AV/MIC did not help) ② Identify message returned 500 after successful authentication (third segment now sends an empty body → 200)
-* Connection pinning reduced connection failures from **87% → 0**; 20,000 weak-password requests against a public target produced zero false positives
-
-### Concurrency & stability (final batch)
-
-* `-race` captured **727 DATA RACEs** (grdp glog global writes, `signal` spin read/write ×2, `*num` in/out of lock) → 5 re-test rounds all zero after the fix
-* RDP brute deadlock verified on a Windows target machine: correct password prints `[vul]`, wrong password gives no false positives, `-br 2` exits immediately
-* Ctrl+C exit races, atomic variables, random sources, parameter warnings, NetBIOS full reads and other low items
-
-### Redis (dedicated fix)
-
-* RESP parsing byte misalignment → `getconfig` always failed, `-rf`/`-rs` unreachable, wrong passwords echoed `<nil>`
-* Rebased on a prefix-free contract, `-` replies converted to real errors, garbage values no longer written back; full matrix verified against Kali Redis 7.0.15 (including config restore after writing a public key / crontab)
-
-### Other fixes
-
-* `-nobr` semantics corrected: no longer implies `-nopoc`, vulnerability detection keeps running
-* `-rf` / `-sshkey` / `-pocpath` now accept BOM / UTF-16 encoded input files
-* Invalid parameters now print an error and exit with code 1 instead of failing silently; leaked prints under `-silent` removed
-* GBK Chinese fingerprints not matching, `-proxy host:port` becoming `http://127.0.0.1:127.0.0.1:8080`, concurrent SYN missed detections (10/10 re-verified on the range), etc.
-* Fingerprint & POC quality: **5 fingerprint rules tightened and 3 dead rules revived** based on nuclei-templates (235k templates); telnet/snmp/tomcat verdicts corrected; 11 high-false-positive POCs removed
+| Category | Fixes and improvements |
+| --- | --- |
+| Stability | Postgres/MySQL/MSSQL had no IO timeout → brute force **hung forever** on unresponsive targets (blackhole measured 30s+ hang → clean 2.2s exit); RDP brute force deadlocked on success (`brlist` made buffered so both paths finish); DATA RACEs on the RDP connection path → `-race` re-tests back to zero (727 before the fix); CIDR `/7`~`/0` expanded without limit causing OOM → cap of 65536 with an explicit message, target skipped |
+| Missed detections & scope | Mismatched response-header key case raised `no such key`, permanently breaking ~30 POCs (incl. Nacos) → written under both canonical and lowercase keys; cross-host 302 sent POCs to an external domain while missing the original target → bases computed explicitly (see 3.2); `-hn` ignored `ip:port` targets from `-hf` (**authorization boundary**) → filtering moved to the `ParseIP` source; `-pa` broke port convergence; ICMP one-to-many mapping reported only one alive host for `localhost` + `127.0.0.1`; GBK pages missed Chinese fingerprints (upstream decoded after fingerprint injection) → decoding moved before injection; `-br` only honored for RDP upstream → extended to every brute module (~3.6x speedup); `-nobr` no longer implicitly skips vulnerability detection |
+| False-positive control | Systematic fcgi false positives corrected; 5 fingerprint rules tightened (nuclei-template based) and 3 dead rules revived; 11 POCs that only checked `status=200` removed; Redis `-rf`/`-rs` skipped config recovery on errors → could overwrite the target's real public key, recovery now deferred over every return path |
+| Output & interaction | `-silent` had only 1 honoring site upstream → now converged across 17 sites (status lines and load summaries silenced too); `-json` output guaranteed to be valid NDJSON; invalid parameters and targets now fail loudly instead of silently; `os.Stdout` flushing (upstream output lagged on Windows cmd); `-rf`/`-sshkey`/`-pocpath` accept BOM / UTF-16 encoded files; brute timeouts tiered (SSH 1s / others 2s) |
 
 ## 3.4 Verification
 
-* 6 parallel review groups found 112 issues; 4 false positives removed; 9 fix batches, each with regression tests
-* `-race` (CGO + GCC): 727 races over 10 rounds before the fix → 0 in 5 rounds after
-* 16 real-world verification items (public assets + Kali range): 15 closed out
-* Windows target machine tests: RDP deadlock/correct-password, WinRM correct-password `[vul]` and concurrency, no false positives
 * Every batch passed **dual-platform builds (Windows + `GOOS=linux`)** with clean `gofmt` / `go vet`
+* `-race` (CGO + GCC): RDP-path races **re-tested at 0 across 5 rounds** after the fix
+* Real-world verification: item-by-item checks against public assets and a Kali range (protocol-level comparisons)
+* Target-machine tests: RDP / WinRM correct-password and concurrency on a Windows target (correct password prints `[vul]`, wrong password gives no false positives); full Redis matrix on Kali (public key / crontab written, target config restored)
+* Local fake-range regression: POC bases, proxy scoping, rule short-circuit fields and redirect bases verified case by case
 
 ## 3.5 Known limitations
 
@@ -274,8 +254,8 @@ Web Scan:
   -dns         DnsLog blind detection (default: enabled)
   -nodns       Disable DnsLog detection
   -no302base   Disable redirect-derived extra POC bases (default: enabled)
-                Enabled: original host always + same-host subdir prefix + cross-host new root
-                Disabled: original host only
+                Always scanned: original root + the original URL's own directory (.../app/dev/api/login.html -> http://h/ and http://h/app/dev/api/)
+                When enabled also adds: same-host jump subdir prefix + cross-host new root (disabled = only the two above)
   -ceye-key string  Override ceye API key for reverse connection (empty = built-in default)
                 e.g.: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  Override ceye subdomain for reverse connection (empty = built-in default)
