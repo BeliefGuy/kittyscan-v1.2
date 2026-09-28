@@ -96,6 +96,7 @@ Default behavior differences:
 * **Ports / dictionaries / POCs**: default ports 21 → 143; password dictionary 70 → 100+ (year variants, keyboard sequences, service defaults) plus account dictionaries for 9 new services; POCs 386 → 688 (Spring Actuator, VMware, Nacos, Chinese OA/CMS, ...), and **11 high-false-positive POCs that only checked `status=200` were removed**
 * **Time-based blind SQLi support**: POC rule `response.duration >= seconds`
 * **POC rule short-circuit fields**: `stop_if_match` (stop on match and count the group as hit, the OR-style "found it, wrap up") / `stop_if_mismatch` (stop on mismatch, same as the default sequential-AND behavior), semantics aligned with afrog/xray
+* **Redirect-derived POC bases** (enabled by default, disable with `-no302base`): original host always scanned; a same-host jump into a subdirectory adds that directory prefix (e.g. `http://host/dev/`), a jump to a root-level file adds nothing; a cross-host jump adds the new host's root only (its path depth ignored)
 * **Engineering**: `build.py` one-shot multi-platform build (optional UPX, skipped automatically when not installed), `os.Stdout` flushing for real-time output on Windows cmd, brute timeouts tiered (SSH 1s / others 2s)
 * **Graceful Ctrl+C**: stop dispatching → flush in-flight results (8s guard) → print completion stats → exit code 130
 
@@ -113,7 +114,7 @@ The code review found **112 issues (12 high / 46 medium / 54 low)**; after verif
 | 4 | Linux SYN checksum pseudo-header had no IPs | All checksums wrong → real src/dst IPs filled per RFC793 |
 | 5 | Linux SYN received with `IPPROTO_RAW` | Could only send, never receive → shared `IPPROTO_TCP` socket |
 | 6 | `-hn` ignored `ip:port` targets from `-hf` | **Authorization boundary**: excluded hosts were still scanned → filtering moved to `ParseIP` source, host/port compared separately |
-| 7 | Cross-host 302 redirect sent the POC to an external domain | **Out-of-scope** requests → original URL restored after the redirect display |
+| 7 | Cross-host 302 redirect sent the POC to an external domain | **Out-of-scope + original missed** → bases now computed explicitly: original host always + same-host subdir prefix + cross-host new root (`-no302base` disables the additions) |
 | 8 | Lowercase POC response-header keys raised `no such key` | ~30 POCs permanently broken (incl. Nacos) → headers written under both canonical and lowercase keys, rule evaluation errors no longer swallowed |
 | 9 | LDAP Bind result parsed with wrong BER offsets | 100% missed detections → BER parsing rewritten |
 | 10 | Kafka topic packet 2 bytes short and not fully read | 100% missed detections → length field padded + `io.ReadFull` |
@@ -272,6 +273,9 @@ Web Scan:
   -full        Full POC scan
   -dns         DnsLog blind detection (default: enabled)
   -nodns       Disable DnsLog detection
+  -no302base   Disable redirect-derived extra POC bases (default: enabled)
+                Enabled: original host always + same-host subdir prefix + cross-host new root
+                Disabled: original host only
   -ceye-key string  Override ceye API key for reverse connection (empty = built-in default)
                 e.g.: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  Override ceye subdomain for reverse connection (empty = built-in default)
@@ -302,7 +306,7 @@ Brute Force:
                 e.g.: -pwdf pass.txt
   -usera string  Add usernames to defaults
                 e.g.: -usera testuser
-  -pwda string  Add passwords to defaults
+  -pwda string   Add passwords to defaults
                 e.g.: -pwda P@ssw0rt1
   -nobr        Skip brute force (vuln detection still runs)
 

@@ -59,6 +59,7 @@ func Flag(Info *HostInfo) {
 	flag.BoolVar(&PocFull, "full", false, "POC全量扫描（如Shiro测试全部Key）")
 	flag.BoolVar(&DnsLog, "dns", true, "使用DnsLog进行无回显漏洞检测（默认开启）")
 	flag.BoolVar(&NoDnsLog, "nodns", false, "禁用DnsLog反连检测")
+	flag.BoolVar(&No302Base, "no302base", false, "关闭302跳转派生的附加POC基准（默认开启）")
 	flag.StringVar(&ApiKey, "ceye-key", "", "覆盖ceye反连API Key（留空则使用内置默认值），例如: -ceye-key 0123456789abcdef0123456789abcdef")
 	flag.StringVar(&CeyeDomain, "ceye-domain", "", "覆盖ceye二级域名（留空则使用内置默认值），例如: -ceye-domain abc.ceye.io")
 	flag.BoolVar(&SynScan, "syn", false, "使用SYN半连接扫描（需管理员/root权限）")
@@ -132,6 +133,7 @@ func FlagEn(Info *HostInfo) {
 	flag.BoolVar(&PocFull, "full", false, "poc full scan, as: shiro 100 key")
 	flag.BoolVar(&DnsLog, "dns", true, "using dnslog poc (default: true)")
 	flag.BoolVar(&NoDnsLog, "nodns", false, "disable dnslog poc")
+	flag.BoolVar(&No302Base, "no302base", false, "disable redirect-derived extra POC bases (enabled by default)")
 	flag.StringVar(&ApiKey, "ceye-key", "", "override ceye API key for reverse connection (empty = built-in default), e.g.: -ceye-key 0123456789abcdef0123456789abcdef")
 	flag.StringVar(&CeyeDomain, "ceye-domain", "", "override ceye subdomain for reverse connection (empty = built-in default), e.g.: -ceye-domain abc.ceye.io")
 	flag.BoolVar(&SynScan, "syn", false, "SYN scan (requires admin/root)")
@@ -221,6 +223,9 @@ Web扫描:
   -full        POC全量扫描（如Shiro全部Key）
   -dns         使用DnsLog检测无回显漏洞（默认开启）
   -nodns       禁用DnsLog反连检测
+  -no302base   关闭302跳转派生的附加POC基准（默认开启）
+                开启时: 原始host必打 + 同域跳子目录时追加该目录前缀 + 跨域时追加新host根目录
+                关闭时: 仅打原始host
   -ceye-key string  覆盖ceye反连API Key（留空则使用内置默认值）
                 例: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  覆盖ceye二级域名（留空则使用内置默认值）
@@ -367,6 +372,9 @@ Web Scan:
   -full        Full POC scan
   -dns         DnsLog blind detection (default: enabled)
   -nodns       Disable DnsLog detection
+  -no302base   Disable redirect-derived extra POC bases (default: enabled)
+                Enabled: original host always + same-host subdir prefix + cross-host new root
+                Disabled: original host only
   -ceye-key string  Override ceye API key for reverse connection (empty = built-in default)
                 e.g.: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  Override ceye subdomain for reverse connection (empty = built-in default)

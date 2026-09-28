@@ -97,6 +97,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 - **端口 / 字典 / POC 扩展**：默认端口 21 → 143；密码字典 70 → 100+（年份变体、键盘序列、服务默认口令等）+ 9 个新服务的账号字典；POC 386 → 688（含 Spring Actuator、VMware、Nacos、国产 OA/CMS 等），并**清理 11 个只判 `status=200` 的高误报 POC**
 - **时间盲注支持**：POC 规则 `response.duration >= 秒数`
 - **POC 规则短路字段**：`stop_if_match`（本条命中即停并判定本组命中，OR 型"找到就收工"）/ `stop_if_mismatch`（本条不命中即停，与顺序 AND 链默认行为一致），语义对齐 afrog/xray
+- **302 跳转派生 POC 基准**（默认开启，`-no302base` 关闭）：原始 host 必打；同域跳子目录则追加该目录前缀（如 `http://host/dev/`），跳根级文件（`/login.html`）不追加；跨域则追加新 host 的根（忽略其路径深度）
 - **工程化**：`build.py` 一键多平台构建（UPX 压缩可选，未安装自动跳过）、`os.Stdout` 实时刷新、爆破超时分级（SSH 1s / 其他 2s）
 - **Ctrl+C 优雅退出**：停止派发新任务 → 在途结果落盘（8s 兜底）→ 打印完成统计 → 退出码 130
 
@@ -114,7 +115,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 | 4 | Linux SYN 校验和伪头部没填 IP | 校验和全错 → 按 RFC793 布局填真实源/目的 IP |
 | 5 | Linux SYN 用 `IPPROTO_RAW` 收包 | 只能发不能收 → 改 `IPPROTO_TCP` 收发共用 |
 | 6 | `-hn` 对 `-hf` 的 `ip:port` 目标失效 | **授权边界**问题：被排除的主机仍被扫 → 过滤移到 `ParseIP` 源头，host/port 分别比对 |
-| 7 | 302 跨域跳转把 POC 打到外部域名 | **越界**问题 → 跳转后还原原始 URL，POC 固定打原始 host |
+| 7 | 302 跨域跳转把 POC 打到外部域名 | **越界 + 漏验原始目标** → 改为显式计算 POC 基准：原始 host 必打 + 同域跳子目录追加该目录前缀 + 跨域追加新 host 的根（`-no302base` 可关闭追加） |
 | 8 | POC 响应 header 小写键取值报 `no such key` | 约 30 个 POC 永久失效（含 Nacos）→ 响应头双写 canonical + 小写两套键，规则求值错误不再被吞 |
 | 9 | LDAP Bind 判定 BER 字节位全错 | 100% 漏报 → 重写 BER 解析 |
 | 10 | Kafka 报文 topics 少 2 字节且未读满 | 100% 漏报 → 长度字段补足 + `io.ReadFull` |
@@ -278,6 +279,9 @@ Web扫描:
   -full        POC全量扫描（如Shiro全部Key）
   -dns         使用DnsLog检测无回显漏洞（默认开启）
   -nodns       禁用DnsLog反连检测
+  -no302base   关闭302跳转派生的附加POC基准（默认开启）
+                开启时: 原始host必打 + 同域跳子目录时追加该目录前缀 + 跨域时追加新host根目录
+                关闭时: 仅打原始host
   -ceye-key string  覆盖ceye反连API Key（留空则使用内置默认值）
                 例: -ceye-key 0123456789abcdef0123456789abcdef
   -ceye-domain string  覆盖ceye二级域名（留空则使用内置默认值）
@@ -304,11 +308,11 @@ Web扫描:
                 例: -pwd 123456
   -userf string  从文件读取用户名
                 例: -userf user.txt
-  -pwdf string  从文件读取密码
+  -pwdf string   从文件读取密码
                 例: -pwdf pass.txt
   -usera string  追加用户名到默认列表
                 例: -usera testuser
-  -pwda string  追加密码到默认列表
+  -pwda string   追加密码到默认列表
                 例: -pwda P@ssw0rt1
   -nobr        跳过密码爆破（漏洞检测照常执行）
 

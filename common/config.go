@@ -187,6 +187,7 @@ var (
 	Pocinfo       PocInfo
 	NoPoc         bool
 	IsBrute       bool
+	No302Base     bool
 	RedisFile     string
 	RedisShell    string
 	Userfile      string

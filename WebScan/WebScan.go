@@ -17,9 +17,8 @@ var Pocs embed.FS
 var once sync.Once
 var AllPocs []*lib.Poc
 
+// WebScan 以默认基准(scheme://host, 丢弃路径)执行 POC 扫描, 行为与历史一致。
 func WebScan(info *common.HostInfo) {
-	once.Do(initpoc)
-	var pocinfo = common.Pocinfo
 	buf := strings.Split(info.Url, "/")
 	// URL 为空或不合法时直接返回, 避免 buf[:3] 越界 panic
 	if len(buf) < 3 || !strings.Contains(info.Url, "://") {
@@ -27,7 +26,21 @@ func WebScan(info *common.HostInfo) {
 		common.LogError(errlog)
 		return
 	}
-	pocinfo.Target = strings.Join(buf[:3], "/")
+	WebScanBase(info, strings.Join(buf[:3], "/"))
+}
+
+// WebScanBase 以显式基准 URL 执行 POC 扫描。
+// base 可含路径前缀(如 http://1.1.1.1/dev), 规则路径会拼接到该前缀之后,
+// 供 302 跳转派生的附加基准使用(见 Plugins/webtitle.go 的 pocBases)。
+func WebScanBase(info *common.HostInfo, base string) {
+	once.Do(initpoc)
+	var pocinfo = common.Pocinfo
+	if base == "" || !strings.Contains(base, "://") {
+		errlog := fmt.Sprintf("[-] webpocinit invalid base url: %q", base)
+		common.LogError(errlog)
+		return
+	}
+	pocinfo.Target = base
 
 	if pocinfo.PocName != "" {
 		Execute(pocinfo)

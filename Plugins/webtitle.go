@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -27,26 +28,28 @@ func WebTitle(info *common.HostInfo) error {
 		return nil
 	}
 	// 先补齐协议再暂存用户输入的原始目标 URL(GOWebTitle 内部的 EnsureUrl 幂等, 重复调用无副作用)。
-	// 后续 302 跨 host 跳转会用跳转结果覆盖 info.Url, POC 扫描必须固定打回这个原始 host。
+	// 后续 302 跳转会用跳转结果覆盖 info.Url; 指纹识别与日志展示用跳转后的结果,
+	// 而 POC 扫描打哪些基准由下方 pocBases 计算(原始 host 必打 + 同域子目录/跨域根目录追加)。
 	EnsureUrl(info)
 	origUrl := info.Url
 	err, CheckData := GOWebTitle(info)
 	// 指纹识别与 [info]/[web] 日志展示仍使用跳转后的 URL, 跳转结果只用于展示。
 	info.Infostr = WebScan.InfoCheck(info.Url, &CheckData)
 
-	// 跨 host 跳转: 把 info.Url 还原为原始目标, 保证 POC 扫描打回用户输入的
-	// 原始 host, 既不漏验原目标, 也避免向跳转后的外部/非授权域名发 POC 请求。
-	// 同 host 跳转(仅 path/协议变化)不还原, 保持正常跟随后的 title 显示行为。
-	if !sameHost(origUrl, info.Url) {
-		info.Url = origUrl
-	}
-
 	if !common.NoPoc && err == nil {
-		WebScan.WebScan(info)
+		// 302 跳转派生的附加 POC 基准(默认开启, -no302base 关闭), 见 pocBases。
+		bases := pocBases(origUrl, info.Url)
+		if len(bases) > 1 && !common.Silent {
+			fmt.Printf("[+] 302跳转, 追加POC基准: %s\n", strings.Join(bases[1:], ", "))
+		}
+		for _, base := range bases {
+			WebScan.WebScanBase(info, base)
+		}
 	} else {
 		errlog := fmt.Sprintf("[-] webtitle %v %v", info.Url, err)
 		common.LogError(errlog)
 	}
+	info.Url = origUrl // 收尾还原(下游不消费, 保持状态确定)
 	return err
 }
 
@@ -59,6 +62,52 @@ func sameHost(u1, u2 string) bool {
 		return false
 	}
 	return strings.EqualFold(p1.Host, p2.Host)
+}
+
+// pocBases 计算一次 302 跳转探测后要执行 POC 扫描的基准 URL 列表。
+// 语义(2026-09-28 设定, 默认开启, -no302base 关闭):
+//  1. 原始目标 host 始终作为基准(与历史一致: 只取 scheme://host, 路径不参与拼接);
+//  2. 同 host 且跳转进入子目录 → 追加该目录前缀(如 http://h/dev), 规则路径拼在其后;
+//     跳到根级文件(/login.html)则不追加;
+//  3. 跨 host → 追加新 host 的根(忽略其路径深度, 如 http://2.2.2.2);
+//  4. 同 host 时 host 保持原始、协议采用跳转后的可用协议(可能 http→https 升级,
+//     与历史行为一致, 避免降回原协议因 301 不被跟随而漏报);
+//  5. -no302base 时只返回基准 1(仍保留第 4 条协议修正, 它不增加请求数)。
+//
+// 注意跨 host 时会向跳转后的外部主机发 POC 请求, 请自行确认其在授权范围内。
+func pocBases(origUrl, jumpUrl string) []string {
+	uo, err := url.Parse(origUrl)
+	if err != nil || uo.Host == "" {
+		return []string{origUrl}
+	}
+	// 历史行为: 基准只取 scheme://host, 丢弃路径
+	base := uo.Scheme + "://" + uo.Host
+	if jumpUrl == "" || jumpUrl == origUrl {
+		return []string{base}
+	}
+	uj, e := url.Parse(jumpUrl)
+	if e != nil || uj.Host == "" {
+		return []string{base}
+	}
+	if !sameHost(origUrl, jumpUrl) {
+		// 跨 host: 关闭时只打原始; 开启时追加新 host 的根(不带路径)
+		if common.No302Base {
+			return []string{base}
+		}
+		return []string{base, uj.Scheme + "://" + uj.Host}
+	}
+	// 同 host: host 保持原始, 协议采用跳转后的可用协议(可能 http→https 升级,
+	// 与历史行为一致, 避免降回原协议因 301 不被跟随而漏报)
+	base = uj.Scheme + "://" + uo.Host
+	if common.No302Base {
+		return []string{base}
+	}
+	// path.Dir: "/dev/x" → "/dev", "/x" → "/", "" → "."
+	jumpDir := path.Dir(uj.Path)
+	if jumpDir != "" && jumpDir != "/" && jumpDir != "." {
+		return []string{base, uj.Scheme + "://" + uj.Host + jumpDir}
+	}
+	return []string{base}
 }
 
 // EnsureUrl 补齐 info.Url (协议://host:port), 只做协议判断, 不发起HTTP请求。
