@@ -62,29 +62,34 @@ func Scan(info common.HostInfo) {
 		// 用于 -hf 中 host:port 与端口扫描结果/重复行之间的去重(S4)。
 		dispatched := make(map[string]struct{})
 
-		// 流水线回调：发现一个端口 → Web探测 + 服务扫描并行
+		// 流水线回调：发现一个端口 → 服务识别 / 特殊分支派发
 		onPortFound := func(targetIP string) {
 			// 记录已派发键(与 AlivePorts/-hf 的 ip:port 格式一致)，供 HostPort 去重
 			dispatched[targetIP] = struct{}{}
 			sHost, sPort := strings.Split(targetIP, ":")[0], strings.Split(targetIP, ":")[1]
 			sInfo := common.HostInfo{Host: sHost, Ports: sPort}
 			if common.Scantype == "all" || common.Scantype == "main" {
-				// 所有端口都探测 Web（抓非标端口上的 Web 服务）
-				AddScan(web, sInfo, &ch, &wg)
-				// 已知服务端口额外走对应的插件扫描
 				switch {
 				case sPort == "135":
+					// 135/445 不走服务识别, 保留原特殊分支逻辑(MS17-010/WMI/RPC)
+					AddScan(web, sInfo, &ch, &wg)
 					AddScan(sPort, sInfo, &ch, &wg)
 					if common.IsWmi {
 						AddScan("1000005", sInfo, &ch, &wg)
 					}
 				case sPort == "445":
-					AddScan(ms17010, sInfo, &ch, &wg)
+					AddScan(web, sInfo, &ch, &wg)
 					// 保留 MS17-010 检测的同时补上 SMB 弱口令爆破(PluginMap["445"]=SmbScan);
-					// switch 分支互斥,不会与下面 ServicePorts 分支重复调度
+					// switch 分支互斥
+					AddScan(ms17010, sInfo, &ch, &wg)
 					AddScan(sPort, sInfo, &ch, &wg)
-				case ServicePorts[sPort]:
-					AddScan(sPort, sInfo, &ch, &wg)
+				default:
+					// 服务识别驱动(identify.go): 先识别该端口是 Web 还是
+					// mysql/mssql/redis 等服务, 识别出服务→对应爆破+未授权插件;
+					// 识别为 Web 或未识别 → WebTitle + ServicePorts 端口表兜底,
+					// 兜底路径与原逻辑等价, 覆盖不回退。替代原先
+					// "无条件盲发HTTP + 固定端口表"的调度。
+					AddScan(IdentifyKey, sInfo, &ch, &wg)
 				}
 			} else {
 				scantype := strconv.Itoa(common.PORTList[common.Scantype])

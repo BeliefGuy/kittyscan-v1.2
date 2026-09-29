@@ -47,6 +47,9 @@ var PluginList = map[string]interface{}{
 	"1000003": WebTitle,
 	"1000004": SmbScan2,
 	"1000005": WmiExec,
+	// "1000006" IdentifyScan 在 identify.go 的 init() 中注册:
+	// IdentifyScan 内部经 ScanFunc 查 PluginMap, 若直接写在初始化表达式里
+	// 会形成 PluginMap → IdentifyScan → ScanFunc → PluginMap 的初始化环(vet 报错)。
 }
 
 // PluginMap 类型化函数 map，避免反射调用
