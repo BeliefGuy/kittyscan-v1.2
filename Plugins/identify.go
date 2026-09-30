@@ -130,16 +130,43 @@ func IdentifyService(host, port string) string {
 
 	// 阶段1: 单连接 —— 先发 HTTP GET, 同时收取先发 banner 型服务的应答。
 	if d := probeTimeout(); d > 0 {
-		svc, tlsAlert := probeBannerHTTP(addr, d)
+		svc, tlsAlert, silent := probeBannerHTTP(addr, d)
 		if svc != "" {
 			return svc
 		}
-		if tlsAlert {
-			// 明文被 TLS 拒绝 → 直接在 TLS 上做 HTTP 探测
+		// TLS 路径(web/redis)在 tlsAlert 与"明文静默"两种情形下都先试:
+		// 明文静默 = TLS-only 服务丢弃非 TLS 流量(2026-09-29 诊断 6380 资产
+		// 65% 为此类, 对端连 alert 都不回) 或白名单静默。先花 ~1s 试 TLS,
+		// 失败再回明文阶段2, 避免逐个明文协议超时把 3×Timeout 预算耗尽、
+		// TLS 探测彻底无预算。
+		if tlsAlert || silent {
+			if silent {
+				// 阶段1b 纯读 banner(新连接、不发任何数据): 救 server-first
+				// banner 型服务(VNC/MySQL/SSH...)在阶段1 "先发GET"竞态中
+				// 对端 RST 丢弃缓冲 banner 而读空的情形 —— 2026-09-29 VNC
+				// Quake 资产 4/5 个回了标准 RFB banner 却未识别即此因。
+				// 上限 1.5s: TLS-only 目标在此白耗可接受, 快速进入 TLS 分支。
+				d1b := probeTimeout()
+				if max := 1500 * time.Millisecond; d1b > max {
+					d1b = max
+				}
+				if d1b >= 300*time.Millisecond {
+					if svc := probeBannerOnly(addr, d1b); svc != "" {
+						return svc
+					}
+				}
+			}
 			if d := probeTimeout(); d > 0 && probeTLSWeb(addr, d) {
 				return "web"
 			}
-			return ""
+			if d := probeTimeout(); d > 0 && probeTLSRedis(addr, d) {
+				return "redis"
+			}
+			if tlsAlert {
+				// 明文已被 TLS 拒绝, 阶段2 明文协议探测无意义(历史语义保留)
+				return ""
+			}
+			// silent: 回到阶段2继续明文探测(慢 banner 服务仍有识别机会)
 		}
 	}
 	// 阶段2: 协议主动探测(每协议独立连接, 失败快速失败)
@@ -163,11 +190,13 @@ func IdentifyService(host, port string) string {
 //   - HTTP 服务回状态行 → "web";
 //   - 先发 banner 的服务(SSH/FTP/MySQL/VNC/...)的 banner 会先于/伴随到达,
 //     GET 对它们无害(协议错误在 banner 之后才被处理);
-//   - TLS 端口对明文返回 alert 记录(0x15 0x03) → tlsAlert=true。
-func probeBannerHTTP(addr string, d time.Duration) (svc string, tlsAlert bool) {
+//   - TLS 端口对明文返回 alert 记录(0x15 0x03) → tlsAlert=true;
+//   - silent=true 表示对端完全无应答(TLS-only 丢弃明文/白名单静默),
+//     调用方据此优先尝试 TLS 探测(2026-09-29 redis 诊断新增)。
+func probeBannerHTTP(addr string, d time.Duration) (svc string, tlsAlert bool, silent bool) {
 	conn, err := common.WrapperTcpWithTimeout("tcp", addr, d)
 	if err != nil {
-		return "", false
+		return "", false, false
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(d))
@@ -175,16 +204,36 @@ func probeBannerHTTP(addr string, d time.Duration) (svc string, tlsAlert bool) {
 	_, _ = conn.Write([]byte(get))
 	data, _ := ReadBytes(conn)
 	if len(data) == 0 {
-		return "", false
+		return "", false, true
 	}
 	if len(data) >= 2 && data[0] == 0x15 && data[1] == 0x03 {
-		return "", true
+		return "", true, false
 	}
-	return classifyBanner(data, conn), false
+	return classifyBanner(data, conn), false, false
 }
 
 // classifyBanner 按首字节特征分类阶段1读到的数据。
 // conn 仅用于 SMTP/FTP 歧义消解的二次探测(220 无关键字时发 EHLO 区分)。
+
+// probeBannerOnly 阶段1b: 新连接纯读, 不发任何数据 —— server-first banner
+// 型服务(VNC/MySQL/SSH...)不受 "先发GET" 干扰, 专救阶段1竞态 RST 丢包场景。
+func probeBannerOnly(addr string, d time.Duration) string {
+	conn, err := common.WrapperTcpWithTimeout("tcp", addr, d)
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(d))
+	data, _ := ReadBytes(conn)
+	if len(data) == 0 {
+		return ""
+	}
+	if len(data) >= 2 && data[0] == 0x15 && data[1] == 0x03 {
+		return "" // TLS alert: 交给调用方的 TLS 分支
+	}
+	return classifyBanner(data, conn)
+}
+
 func classifyBanner(data []byte, conn net.Conn) string {
 	switch {
 	case bytes.HasPrefix(data, []byte("HTTP/")):
@@ -195,6 +244,12 @@ func classifyBanner(data []byte, conn net.Conn) string {
 		return "mysql"
 	case bytes.HasPrefix(data, []byte("RFB ")):
 		return "vnc"
+	case mysqlErrPacket(data):
+		// MySQL ERR 包(如白名单拦截的 code 1130 "Host is not allowed to
+		// connect to this MySQL server"): 服务器不发 greeting 直接回 ERR,
+		// mysqlGreeting(只认 0x0a 握手包)不匹配 —— 2026-09-29 mysql 3306
+		// Quake 资产 14/60 失败样本全部为此类
+		return "mysql"
 	case bytes.HasPrefix(data, []byte("@RSYNCD:")):
 		return "rsync"
 	case len(data) >= 2 && data[0] == 0xff && (data[1] == 0xfb || data[1] == 0xfd || data[1] == 0xfa):
@@ -224,6 +279,14 @@ func classifyBanner(data []byte, conn net.Conn) string {
 		return ""
 	}
 	return ""
+}
+
+// mysqlErrPacket 判定 MySQL ERR 包: [3B len LE][1B seq][0xff=ERR][2B errcode LE]...
+// 双条件防误报: 0xff 包类型 + 消息含 mysql 关键字。典型场景是白名单拦截的
+// MySQL(code 1130 Host is not allowed to connect)不发 greeting 直接回 ERR。
+func mysqlErrPacket(data []byte) bool {
+	return len(data) >= 7 && data[4] == 0xff &&
+		bytes.Contains(bytes.ToLower(data), []byte("mysql"))
 }
 
 // mysqlGreeting 判定 MySQL/MariaDB 服务端握手包:
@@ -288,15 +351,44 @@ func svcWriteRead(addr string, d time.Duration, payload []byte) []byte {
 	return data
 }
 
-// probeRedisService: PING → +PONG / -NOAUTH / -DENIED。
+// probeRedisService: PING → +PONG / -NOAUTH / -DENIED / -NOPERM(ACL) /
+// -LOADING(主从加载) / -ERR operation not permitted(云代理干扰, 2026-09-29
+// 实测 36.137.x 该响应确认为 redis 系)。
 func probeRedisService(addr string, d time.Duration) bool {
-	data := svcWriteRead(addr, d, []byte("PING\r\n"))
+	return redisRespMatch(svcWriteRead(addr, d, []byte("PING\r\n")))
+}
+
+// redisRespMatch 判定 redis RESP 错误/成功前缀(明文与 TLS 探测共用)。
+func redisRespMatch(data []byte) bool {
 	if len(data) == 0 {
 		return false
 	}
 	return bytes.HasPrefix(data, []byte("+PONG")) ||
 		bytes.HasPrefix(data, []byte("-NOAUTH")) ||
-		bytes.HasPrefix(data, []byte("-DENIED"))
+		bytes.HasPrefix(data, []byte("-DENIED")) ||
+		bytes.HasPrefix(data, []byte("-NOPERM")) ||
+		bytes.HasPrefix(data, []byte("-LOADING")) ||
+		bytes.HasPrefix(data, []byte("-ERR operation not permitted"))
+}
+
+// probeTLSRedis: TLS 握手后发 PING, 按 RESP 前缀判定(2026-09-29 redis 诊断:
+// 6380 资产约 65% 为 TLS-only, 明文被静默丢弃, 必须在 TLS 上探测)。
+func probeTLSRedis(addr string, d time.Duration) bool {
+	dialer := &net.Dialer{Timeout: d}
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+		InsecureSkipVerify: true, // 识别探测, 不校验证书
+		MinVersion:         tls.VersionTLS10,
+	})
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(d))
+	if _, err := conn.Write([]byte("PING\r\n")); err != nil {
+		return false
+	}
+	data, _ := ReadBytes(conn)
+	return redisRespMatch(data)
 }
 
 // probeMemcachedService: stats → STAT 行。

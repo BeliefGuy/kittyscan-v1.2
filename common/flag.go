@@ -56,7 +56,7 @@ func Flag(Info *HostInfo) {
 	flag.BoolVar(&IsBrute, "nobr", false, "跳过密码爆破（漏洞检测照常执行）")
 	flag.BoolVar(&IsWmi, "wmi", false, "在135端口发现时额外尝试WMI命令执行")
 	flag.BoolVar(&Noredistest, "noredis", false, "跳过Redis未授权写入测试")
-	flag.BoolVar(&PocFull, "full", false, "POC全量扫描（如Shiro测试全部Key）")
+	flag.BoolVar(&PocFull, "full", false, "强制每个URL全量执行所有POC（跳过指纹收敛；Shiro测试全部Key）")
 	flag.BoolVar(&DnsLog, "dns", true, "使用DnsLog进行无回显漏洞检测（默认开启）")
 	flag.BoolVar(&NoDnsLog, "nodns", false, "禁用DnsLog反连检测")
 	flag.BoolVar(&No302Base, "no302base", false, "关闭302跳转派生的附加POC基准（默认开启）")
@@ -130,7 +130,7 @@ func FlagEn(Info *HostInfo) {
 	flag.BoolVar(&IsBrute, "nobr", false, "not to Brute password (vuln detection still runs)")
 	flag.BoolVar(&IsWmi, "wmi", false, "start wmi")
 	flag.BoolVar(&Noredistest, "noredis", false, "no redis sec test")
-	flag.BoolVar(&PocFull, "full", false, "poc full scan, as: shiro 100 key")
+	flag.BoolVar(&PocFull, "full", false, "force full POC scan on every URL (skip fingerprint filtering; shiro all keys)")
 	flag.BoolVar(&DnsLog, "dns", true, "using dnslog poc (default: true)")
 	flag.BoolVar(&NoDnsLog, "nodns", false, "disable dnslog poc")
 	flag.BoolVar(&No302Base, "no302base", false, "disable redirect-derived extra POC bases (enabled by default)")
@@ -220,7 +220,7 @@ Web扫描:
                 例: -pocname weblogic
   -pocpath string  自定义POC目录
                 例: -pocpath /path/to/pocs
-  -full        POC全量扫描（如Shiro全部Key）
+  -full        强制每个URL全量POC（跳过指纹收敛；Shiro全部Key）
   -dns         使用DnsLog检测无回显漏洞（默认开启）
   -nodns       禁用DnsLog反连检测
   -no302base   关闭302跳转派生的附加POC基准（默认开启）
@@ -369,7 +369,7 @@ Web Scan:
                 e.g.: -pocname weblogic
   -pocpath string  Custom POC directory
                 e.g.: -pocpath /path/to/pocs
-  -full        Full POC scan
+  -full        Force full POC scan on every URL (skip fingerprint filtering)
   -dns         DnsLog blind detection (default: enabled)
   -nodns       Disable DnsLog detection
   -no302base   Disable redirect-derived extra POC bases (default: enabled)

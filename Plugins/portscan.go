@@ -2,11 +2,13 @@ package Plugins
 
 import (
 	"fmt"
-	"github.com/shadow1ng/fscan/common"
+	"net"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/shadow1ng/fscan/common"
 )
 
 type Addr struct {
@@ -97,6 +99,15 @@ func PortConnect(addr Addr, respondingHosts chan<- string, adjustedTimeout int64
 	// 降级：TCP Connect 扫描（完整三次握手）
 	conn, err := common.WrapperTcpWithTimeout("tcp4", address, time.Duration(adjustedTimeout)*time.Second)
 	if err == nil {
+		// D方案(2026-09-29 用户选定, 仅优化 connect 路径, 不做真SYN):
+		// SetLinger(0) -> close 时发 RST 而非 FIN 四次挥手, 连接不进 TIME_WAIT。
+		// Windows 动态端口仅 ~16k(49152-65535) 且 TIME_WAIT 持续 ~4 分钟,
+		// 高速扫大端口段会本地端口耗尽(WSAEADDRNOTAVAIL)导致漏报;
+		// RST 关闭还避免在目标侧留下 TIME_WAIT/已建立连接残留。
+		// 对 target 的既有业务连接(Banner/爆破/WebTitle)无影响——本函数只做端口探测。
+		if tc, ok := conn.(*net.TCPConn); ok {
+			_ = tc.SetLinger(0)
+		}
 		defer conn.Close()
 		wg.Add(1)
 		respondingHosts <- address
