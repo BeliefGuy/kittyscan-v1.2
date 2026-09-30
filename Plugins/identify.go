@@ -134,49 +134,89 @@ func IdentifyService(host, port string) string {
 		if svc != "" {
 			return svc
 		}
-		// TLS 路径(web/redis)在 tlsAlert 与"明文静默"两种情形下都先试:
-		// 明文静默 = TLS-only 服务丢弃非 TLS 流量(2026-09-29 诊断 6380 资产
-		// 65% 为此类, 对端连 alert 都不回) 或白名单静默。先花 ~1s 试 TLS,
-		// 失败再回明文阶段2, 避免逐个明文协议超时把 3×Timeout 预算耗尽、
-		// TLS 探测彻底无预算。
-		if tlsAlert || silent {
-			if silent {
-				// 阶段1b 纯读 banner(新连接、不发任何数据): 救 server-first
-				// banner 型服务(VNC/MySQL/SSH...)在阶段1 "先发GET"竞态中
-				// 对端 RST 丢弃缓冲 banner 而读空的情形 —— 2026-09-29 VNC
-				// Quake 资产 4/5 个回了标准 RFB banner 却未识别即此因。
-				// 上限 1.5s: TLS-only 目标在此白耗可接受, 快速进入 TLS 分支。
-				d1b := probeTimeout()
-				if max := 1500 * time.Millisecond; d1b > max {
-					d1b = max
-				}
-				if d1b >= 300*time.Millisecond {
-					if svc := probeBannerOnly(addr, d1b); svc != "" {
-						return svc
-					}
-				}
-			}
+		// TLS 路径(web/redis): 明文被 TLS 拒绝(alert) 时的原有语义。
+		if tlsAlert {
 			if d := probeTimeout(); d > 0 && probeTLSWeb(addr, d) {
 				return "web"
 			}
 			if d := probeTimeout(); d > 0 && probeTLSRedis(addr, d) {
 				return "redis"
 			}
-			if tlsAlert {
-				// 明文已被 TLS 拒绝, 阶段2 明文协议探测无意义(历史语义保留)
-				return ""
+			if d := probeTimeout(); d > 0 && probeTLSAmqp(addr, d) {
+				return "amqp"
 			}
-			// silent: 回到阶段2继续明文探测(慢 banner 服务仍有识别机会)
+			// 明文已被 TLS 拒绝, 阶段2 明文协议探测无意义(历史语义保留)
+			return ""
 		}
+		// 阶段1b 纯读 banner(新连接、不发数据): 救 server-first banner 型服务
+		// (VNC/MySQL/FTP...)在阶段1 "先发GET"竞态中对端 RST 截断缓冲 banner
+		// 的情形 —— 含"读到残缺数据非空"的变体(2026-09-29 实测: 真 MySQL
+		// 5.5.62@2012 与 FileZilla FTP@990 因残截漏识别, 静默与残截统一触发)。
+		// 上限 1s(2026-09-29 并发化配套优化, 原 1.5s)。
+		d1b := probeTimeout()
+		if max := 1000 * time.Millisecond; d1b > max {
+			d1b = max
+		}
+		if d1b >= 300*time.Millisecond {
+			if svc := probeBannerOnly(addr, d1b); svc != "" {
+				return svc
+			}
+		}
+		if silent {
+			// 明文完全静默 → 可能 TLS-only(6380 资产 65% 为此类):
+			// TLS 上试 web/redis。明文有数据但不识别的目标跳过 TLS(2026-09-29
+			// 配套优化: 明文已响应=非 TLS-only, 省 ~2s 给阶段2)。
+			// 单次上限 1.5s(正常 TLS 握手 <1s): 对"纯静默明文"目标 ClientHello
+			// 无响应时不让 TLS 吃满超时, 给阶段2 并发探测留足预算。
+			dTw := probeTimeout()
+			if max := 1500 * time.Millisecond; dTw > max {
+				dTw = max
+			}
+			if dTw > 0 && probeTLSWeb(addr, dTw) {
+				return "web"
+			}
+			dTr := probeTimeout()
+			if max := 1500 * time.Millisecond; dTr > max {
+				dTr = max
+			}
+			if dTr > 0 && probeTLSRedis(addr, dTr) {
+				return "redis"
+			}
+			dTa := probeTimeout()
+			if max := 1500 * time.Millisecond; dTa > max {
+				dTa = max
+			}
+			if dTa > 0 && probeTLSAmqp(addr, dTa) {
+				return "amqp"
+			}
+		}
+		// → 阶段2 明文协议探测
 	}
-	// 阶段2: 协议主动探测(每协议独立连接, 失败快速失败)
+	// 阶段2: 协议主动探测 —— 并发执行(2026-09-29 用户批准): 每协议独立连接、
+	// 各自 probeTimeout() deadline, 总耗时 max 而非 sum; buffered channel
+	// 容量=探测数, 提前 return 后余下 goroutine 写入不阻塞、由自身 deadline
+	// 兜底退出, 无泄漏。根治串行版静默目标逐个吃满 3s、总预算 9s 内
+	// postgres(第5)/rdp(第7) 永远轮不到的结构性问题(实测 13389 真 RDP
+	// X.224 有响应却 0/60 识别)。
+	type probeOutcome struct {
+		name string
+		ok   bool
+	}
+	ch := make(chan probeOutcome, len(protocolProbes))
 	for _, p := range protocolProbes {
-		d := probeTimeout()
-		if d < 300*time.Millisecond {
-			break
-		}
-		if p.fn(addr, d) {
-			return p.name
+		go func(p serviceProbe) {
+			d := probeTimeout()
+			if d < 300*time.Millisecond {
+				ch <- probeOutcome{p.name, false}
+				return
+			}
+			ch <- probeOutcome{p.name, p.fn(addr, d)}
+		}(p)
+	}
+	for i := 0; i < len(protocolProbes); i++ {
+		r := <-ch
+		if r.ok {
+			return r.name
 		}
 	}
 	// 阶段3: TLS 探测(明文阶段静默的端口可能是 TLS-only Web)
@@ -252,8 +292,17 @@ func classifyBanner(data []byte, conn net.Conn) string {
 		return "mysql"
 	case bytes.HasPrefix(data, []byte("@RSYNCD:")):
 		return "rsync"
-	case len(data) >= 2 && data[0] == 0xff && (data[1] == 0xfb || data[1] == 0xfd || data[1] == 0xfa):
-		// Telnet IAC WILL/DO/SUBNEGOTIATION
+	case bytes.Contains(data, []byte{0xff, 0xfb}) ||
+		bytes.Contains(data, []byte{0xff, 0xfd}) ||
+		bytes.Contains(data, []byte{0xff, 0xfa}):
+		// Telnet IAC WILL/DO/SUBNEGOTIATION —— 从"首字节"放宽为"含 IAC 序列":
+		// 阶段1 发 GET 后服务器回显与 IAC 协商混合时 IAC 不在首位
+		// (2026-09-29 实测 181.119.185.49 纯读 \xff\xfb\x01 却漏识别)
+		return "telnet"
+	case bytes.Contains(bytes.ToLower(data), []byte("telnet")):
+		// telnet 文本 banner(如 "Warning: Telnet is not a secure protocol...",
+		// 2026-09-29 实测 112.30.50.111 漏)。HTTP/ 状态行 case 在最前, HTML 页面
+		// 必带状态行先行拦截; 非 HTTP 文本含 telnet 即 telnet 类设备 banner
 		return "telnet"
 	case bytes.HasPrefix(data, []byte("220 ")) || bytes.HasPrefix(data, []byte("220-")):
 		head := data
@@ -502,7 +551,11 @@ var amqpHeader = []byte{'A', 'M', 'Q', 'P', 0x00, 0x00, 0x09, 0x01}
 // probeAmqpService: 协议头 → 服务端回协议头("AMQP...")或 Connection.Start 方法帧
 // (frame type=1, class=10 connection, method=10 start)。
 func probeAmqpService(addr string, d time.Duration) bool {
-	data := svcWriteRead(addr, d, amqpHeader)
+	return amqpRespMatch(svcWriteRead(addr, d, amqpHeader))
+}
+
+// amqpRespMatch AMQP 应答判定(明文与 TLS 探测共用)。
+func amqpRespMatch(data []byte) bool {
 	if len(data) == 0 {
 		return false
 	}
@@ -511,6 +564,27 @@ func probeAmqpService(addr string, d time.Duration) bool {
 	}
 	return len(data) >= 11 && data[0] == 0x01 &&
 		data[7] == 0x00 && data[8] == 0x0a && data[9] == 0x00 && data[10] == 0x0a
+}
+
+// probeTLSAmqp: TLS 握手后发 AMQP 协议头, 按应答判定(2026-09-29 补: 5673 资产
+// 实测回 TLS alert 的 AMQPS 端口, 与 probeTLSRedis 同构——TLS-only 协议族
+// 需要在 TLS 上探测, 明文协议头被静默丢弃)。
+func probeTLSAmqp(addr string, d time.Duration) bool {
+	dialer := &net.Dialer{Timeout: d}
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+		InsecureSkipVerify: true, // 识别探测, 不校验证书
+		MinVersion:         tls.VersionTLS10,
+	})
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(d))
+	if _, err := conn.Write(amqpHeader); err != nil {
+		return false
+	}
+	data, _ := ReadBytes(conn)
+	return amqpRespMatch(data)
 }
 
 // probeTLSWeb 阶段3: TLS 握手成功且其上为 HTTP → true。
