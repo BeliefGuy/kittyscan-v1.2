@@ -178,7 +178,7 @@ var (
 	Password      string
 	Proxy         string
 	Timeout       int64 = 3
-	BruteTimeout  int64 = 2 // SSH 爆破超时
+	BruteTimeout  int64 = 3 // SSH 爆破超时(2026-09-29 由 2 调至 3: 公网握手 2s 偏紧, 用户批准 +1s)
 	BruteTimeout2 int64 = 2 // 其他服务爆破超时
 	WebTimeout    int64 = 5
 	TmpSave       bool

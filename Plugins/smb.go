@@ -10,7 +10,35 @@ import (
 	"time"
 )
 
+// SmbScan SMB 爆破统一入口(2026-09-29 融合: SmbScan + SmbScan2 按方言二选一)。
+// 流程: -nobr 跳过 → -hash 直接 smb2 后端(PTH 仅 go-smb2 支持) →
+// smbDialectProbe 一条连接探测方言 → 只跑被选中后端的全字典(单遍, 不双倍):
+//   - smb1(stacktitan): 目标接受 SMB1(双栈/老设备)
+//   - smb2(go-smb2):    目标禁 SMB1 仅 SMB2+(现代 Windows/Samba)、探测失败默认、-hash
+//
+// 探测失败走 smb2 是安全兜底: 死主机/非 SMB 由 ErrJudge(连续超时3次)与
+// CheckErrs(致命错误)快速终止, 不会白跑全字典。日志格式按后端保持原样
+// (smb1→[-] smb/[vul] SMB, smb2→[-] smb2/[vul] SMB2), 下游解析不受影响。
 func SmbScan(info *common.HostInfo) (tmperr error) {
+	if common.IsBrute {
+		return nil
+	}
+	// -hash NTLM 哈希传递: stacktitan/smb(SMB1)不支持, 必须走 go-smb2
+	if len(common.Hash) > 0 {
+		return smb2Brute(info)
+	}
+	// 探测目标固定 445: 两个后端(SmblConn/Smb2Con)均硬编码打 host:445,
+	// 即使 info.Ports 是 1445/4445(-m smb / 端口兜底映射)实际连接也是 445。
+	switch smbDialectProbe(fmt.Sprintf("%v:445", info.Host), time.Duration(common.Timeout)*time.Second) {
+	case smbDialectSMB1:
+		return smb1Brute(info)
+	default: // smb2 与 unknown 统一走 go-smb2(现代默认+快速失败兜底)
+		return smb2Brute(info)
+	}
+}
+
+// smb1Brute SMB1 协议弱口令爆破(原 SmbScan 主体, stacktitan/smb 栈, 逻辑零改动, 仅改名)。
+func smb1Brute(info *common.HostInfo) (tmperr error) {
 	if common.IsBrute {
 		return nil
 	}
@@ -46,6 +74,7 @@ func SmbScan(info *common.HostInfo) (tmperr error) {
 		stopped bool // 终态已发生，close(stop) 只会执行一次
 		sucErr  error
 	)
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	stop := make(chan struct{})
 	// signalStop：调用方必须持有 mu；stopped 保证不会重复 close(stop)（panic）
 	signalStop := func() {
@@ -102,7 +131,7 @@ func SmbScan(info *common.HostInfo) (tmperr error) {
 				errlog = strings.Replace(errlog, "\n", "", -1)
 				common.LogError(errlog)
 				tmperr = err
-				if common.CheckErrs(err) {
+				if judge.ShouldStop(err) {
 					signalStop()
 					mu.Unlock()
 					return

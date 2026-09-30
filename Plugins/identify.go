@@ -25,7 +25,8 @@ import (
 //  2. 识别出具体服务(含非标端口) → 打印 [info], 直接调用对应爆破/未授权插件,
 //     不再对该端口盲发 HTTP;
 //  3. 识别为 Web 或识别不出 → 走原 WebTitle(指纹+POC, 利用逻辑零改动) +
-//     ServicePorts 端口表兜底, 行为与重构前完全一致, 保证覆盖不回退。
+//     ServicePorts 端口表兜底(2026-09-29 精简后每服务仅 1 个兜底端口,
+//     非标端口的派发完全依赖本文件的识别, 识别失败时不再有端口表兜底)。
 //
 // 识别策略(两阶段, 总预算 3×Timeout, 超时即回退):
 //  - 阶段1 单连接: 立即发 HTTP GET, 同时收取"先发 banner"型服务的应答,
@@ -71,23 +72,35 @@ var ServicePluginKey = map[string]string{
 // 并发槽 ch 容量=Threads, 嵌套派发会在槽位占满时互相等待造成死锁。
 func IdentifyScan(info *common.HostInfo) {
 	svc := IdentifyService(info.Host, info.Ports)
+	// 2026-09-29 输出格式: [port] 行与服务识别合并为一行(用户要求),
+	// 识别结果以 (svc) 后缀追加在端口后; 原独立服务行 "[info] ip:port svc" 取消,
+	// 指纹类 [info](InfoScan)与 [web] 不受影响。未识别时不带后缀(等同原 [port] 行)。
+	// web 归一显示为 http(用户示例: [port] ip:8080(http))。
+	addr := fmt.Sprintf("%v:%v", info.Host, info.Ports)
+	switch {
+	case svc == "web":
+		common.LogSuccess("[port] " + addr + "(http)")
+	case svc != "":
+		common.LogSuccess("[port] " + addr + "(" + svc + ")")
+	default: // 未识别: 与原扫描期 [port] 行一致
+		common.LogSuccess("[port] " + addr)
+	}
 	if svc != "" && svc != "web" {
-		common.LogSuccess(fmt.Sprintf("[info] %v:%v %v", info.Host, info.Ports, svc))
 		if key, ok := ServicePluginKey[svc]; ok {
 			k := key
 			ScanFunc(&k, info)
 			return
 		}
 		// 识别出无对应插件的服务(如 smtp/amqp): 不盲发 HTTP;
-		// 若端口仍在端口表内则保留端口表兜底派发, 覆盖不回退。
+		// 端口仍在精简后的端口表内(每服务 1 个兜底端口)则保留兜底派发。
 		if ServicePorts[info.Ports] {
 			k := info.Ports
 			ScanFunc(&k, info)
 		}
 		return
 	}
-	// svc == "web" 或 未识别出具体服务 → 与重构前完全一致:
-	// WebTitle(指纹+POC, 利用逻辑不变) + ServicePorts 端口表兜底插件。
+	// svc == "web" 或 未识别出具体服务 → WebTitle(指纹+POC, 利用逻辑不变)
+	// + ServicePorts 端口表兜底插件(2026-09-29 精简: 每服务仅 1 个兜底端口)。
 	webKey := strconv.Itoa(common.PORTList["web"])
 	ScanFunc(&webKey, info)
 	if ServicePorts[info.Ports] {

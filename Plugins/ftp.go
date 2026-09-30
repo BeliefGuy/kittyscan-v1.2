@@ -12,6 +12,7 @@ import (
 
 func FtpScan(info *common.HostInfo) (tmperr error) {
 	starttime := time.Now().Unix()
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	// 匿名访问检测：属于漏洞/未授权检测而非口令爆破，-nobr（仅做漏洞检测）时仍须执行，
 	// 故放在 IsBrute 判断之前；成功时 FtpConn 内部照常输出 [vul] ftp host:port:anonymous
 	flag, err := FtpConn(info, "anonymous", "")
@@ -21,7 +22,7 @@ func FtpScan(info *common.HostInfo) (tmperr error) {
 		errlog := fmt.Sprintf("[-] ftp %v:%v %v %v", info.Host, info.Ports, "anonymous", err)
 		common.LogError(errlog)
 		tmperr = err
-		if common.CheckErrs(err) {
+		if judge.ShouldStop(err) {
 			return err
 		}
 	}
@@ -108,7 +109,7 @@ func FtpScan(info *common.HostInfo) (tmperr error) {
 				errlog := fmt.Sprintf("[-] ftp %v:%v %v %v %v", info.Host, info.Ports, c.user, c.pass, err)
 				common.LogError(errlog)
 				tmperr = err
-				if common.CheckErrs(err) {
+				if judge.ShouldStop(err) {
 					signalStop()
 					mu.Unlock()
 					return

@@ -39,6 +39,7 @@ func PostgresScan(info *common.HostInfo) (tmperr error) {
 		closed bool // close(stop) 只执行一次的保护(成功与致命错误两条路径共用)
 		stop   = make(chan struct{})
 	)
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	// 原预算: (int64(len(users)*len(passs)) * common.Timeout) 秒, 并发后按 worker 数摊薄
 	budget := time.Duration(len(combos)) * time.Duration(common.Timeout) * time.Second / time.Duration(workers)
 	// 预填充有缓冲 channel(容量=组合数): 投递不阻塞, worker 提前退出也不会死锁
@@ -82,7 +83,7 @@ func PostgresScan(info *common.HostInfo) (tmperr error) {
 				errlog := fmt.Sprintf("[-] psql %v:%v %v %v %v", info.Host, info.Ports, c.user, c.pass, err)
 				common.LogError(errlog)
 				tmperr = err // 具名返回值, 必须在 mu 内写
-				if common.CheckErrs(err) {
+				if judge.ShouldStop(err) {
 					if !closed {
 						closed = true
 						close(stop)

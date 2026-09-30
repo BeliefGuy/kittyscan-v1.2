@@ -161,6 +161,7 @@ func WinrmBruteForce(info *common.HostInfo) (tmperr error) {
 	}
 
 	starttime := time.Now().Unix()
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	for _, user := range users {
 		for _, pass := range passes {
 			pass = strings.Replace(pass, "{user}", user, -1)
@@ -175,7 +176,7 @@ func WinrmBruteForce(info *common.HostInfo) (tmperr error) {
 			errlog = strings.Replace(errlog, "\n", "", -1)
 			common.LogError(errlog)
 			tmperr = err
-			if common.CheckErrs(err) {
+			if judge.ShouldStop(err) {
 				return err
 			}
 			if time.Now().Unix()-starttime > (int64(len(users)*len(passes)) * common.Timeout) {

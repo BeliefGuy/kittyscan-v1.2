@@ -164,6 +164,7 @@ func RtspScan(info *common.HostInfo) (tmperr error) {
 		closed bool
 		stop   = make(chan struct{})
 	)
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	start := time.Now()
 	// 预算沿用原公式：组合数 × RtspTimeout 秒，只按 worker 数摊薄
 	budget := time.Duration(len(combos)) * time.Duration(RtspTimeout) * time.Second / time.Duration(workers)
@@ -210,7 +211,7 @@ func RtspScan(info *common.HostInfo) (tmperr error) {
 				// 失败日志与原 else 分支逐字一致（原模板即不带 err 字段）
 				common.LogError(fmt.Sprintf("[-] rtsp %v:%v %v %v/%v", info.Host, info.Ports, brutePath, c.user, c.pass))
 				tmperr = err
-				if common.CheckErrs(err) {
+				if judge.ShouldStop(err) {
 					if !closed {
 						closed = true
 						close(stop)

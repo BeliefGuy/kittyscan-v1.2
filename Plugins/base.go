@@ -91,108 +91,73 @@ var PluginMap = map[string]interface{}{
 	"1000005": WmiExec,
 }
 
-// ServicePorts 服务端口 map（用于 O(1) 查找）
+// ServicePorts 服务兜底端口 map（用于 O(1) 查找）。
+// 2026-09-29 精简(双轨制): identify 识别驱动派发已在公网验证(SSH@2022 映射表外端口
+// 39/39 触发爆破), 按服务是否被 identify 覆盖分两轨:
+//   - identify 已覆盖的 13 服务(ssh/ftp/telnet/vnc/rsync/mysql/mssql/postgres/
+//     mongodb/redis/memcached/kafka/rdp): 非标端口由 ServicePluginKey 识别后直接
+//     派发, 本表仅留 1 个兜底端口(识别失败/判 web 时的回退);
+//   - identify 永远测不出的服务(无对应探针): 非标端口兜底**必须保留完整集合**,
+//     否则扫描表(DefaultPorts/main)扫了这些端口却无插件派发=白扫
+//     (2026-09-29 用户批准恢复)。
+//
+// 扫描端口范围(PortGroup/DefaultPorts)不受本表影响, 始终按原列表全扫。
 var ServicePorts = map[string]bool{
-	// FTP
-	"21": true, "2121": true, "2122": true,
-	// SSH
-	"22": true, "1022": true, "2222": true, "10022": true, "22222": true,
-	// Telnet
-	"23": true,
-	// RPC/NetBIOS
+	// FTP / SSH / Telnet (identify banner 覆盖 → 各留 1 兜底)
+	"21": true, "22": true, "23": true,
+	// RPC/NetBIOS/SMB (135/445 走 scanner.go 特殊分支; SMB identify 无探针 → 保留 1445/4445)
 	"135": true, "139": true, "445": true, "1445": true, "4445": true,
-	// Rsync
-	"873": true,
-	// SNMP
-	"161": true,
-	// SQL Server
-	"1433": true, "1434": true, "2433": true, "14330": true,
-	// Oracle
+	// Rsync / SNMP
+	"873": true, "161": true,
+	// SQL Server / MySQL / PostgreSQL / MongoDB / RDP / VNC (identify 覆盖 → 各留 1)
+	"1433": true, "3306": true, "5432": true, "27017": true, "3389": true, "5900": true,
+	// Oracle (identify 无 TNS 探针 → 非标端口兜底全保留)
 	"1521": true, "1522": true, "1523": true, "1524": true, "1525": true,
 	"1526": true, "2483": true, "2484": true,
-	// Zookeeper
-	"2181": true,
-	// MySQL
-	"3306": true, "3307": true, "13306": true, "23306": true, "33060": true,
-	// RDP
-	"3389": true, "13389": true, "23389": true, "33389": true,
-	// SVN
-	"3690": true,
-	// LDAP
+	// Zookeeper / SVN / Kafka / RabbitMQ / Memcached / Redis (标准端口服务, 各留 1)
+	"2181": true, "3690": true, "9092": true, "15672": true, "11211": true, "6379": true,
+	// LDAP (identify 无探针 → 5000/636 保留; 389 经 PortToPlugin 桥接)
 	"389": true, "5000": true, "636": true,
-	// PostgreSQL
-	"5432": true, "5433": true, "5434": true, "25432": true,
-	// VNC
-	"5900": true, "5901": true, "5902": true,
-	// WinRM
+	// WinRM (HTTP/TLS 判 web 后靠兜底 → 5986 保留, 5985 本体)
 	"5985": true, "5986": true,
-	// ActiveMQ (61616=OpenWire, 8161=Web控制台, 插件按 HTTP /admin/ 探测)
+	// ActiveMQ (identify 无 OpenWire 探针 → 61616 保留; 8161=Web控制台)
 	"61616": true, "8161": true,
-	// Redis
-	"6379": true, "6380": true, "16379": true, "26379": true,
-	// WebLogic
+	// WebLogic (HTTP 判 web 靠兜底 → 非标 7002/9060 保留)
 	"7001": true, "7002": true, "9060": true,
-	// Tomcat
+	// Tomcat (HTTP 判 web 靠兜底 → 非标 8081-8090/8443/9080/9443 保留)
 	"8080": true, "8081": true, "8082": true, "8083": true, "8084": true,
 	"8085": true, "8086": true, "8087": true, "8088": true, "8089": true,
 	"8090": true, "8443": true, "9080": true, "9443": true,
-	// Fcgi
-	"9000": true,
-	// Kafka
-	"9092": true,
-	// Elasticsearch
-	"9200": true, "9201": true, "9300": true,
-	// Memcached
-	"11211": true,
-	// RabbitMQ
-	"15672": true,
-	// MongoDB
-	"27017": true, "27018": true, "27019": true,
-	// RTSP
+	// Fcgi / Elasticsearch (es 无探针 → 9201/9300 保留)
+	"9000": true, "9200": true, "9201": true, "9300": true,
+	// RTSP (identify 无探针 → 8554 保留)
 	"554": true, "8554": true,
 }
 
-// PortToPlugin 非标端口 → 标准端口插件映射
+// PortToPlugin 端口 → 插件注册键的必要桥接（2026-09-29 双轨制）。
+//   - identify 已覆盖服务: 非标端口映射已随识别驱动派发删除(识别后经
+//     ServicePluginKey 直接派发, 不经过本表);
+//   - identify 永远测不出的服务: 非标→标准映射全部保留(兜底派发依赖它, 用户批准恢复)。
+//
+// 保留的固定桥接: activemq 8161(Web控制台, -m activemq 也扫它)、ldap 389(标准端口)。
 var PortToPlugin = map[string]string{
-	// SSH
-	"1022": "22", "2222": "22", "10022": "22", "22222": "22",
-	// FTP
-	"2121": "21", "2122": "21",
-	// MySQL
-	"3307": "3306", "13306": "3306", "23306": "3306", "33060": "3306",
-	// MSSQL
-	"1434": "1433", "2433": "1433", "14330": "1433",
-	// Oracle
+	// LDAP (插件注册键 5000, 标准端口 389/636)
+	"389": "5000", "636": "5000",
+	// Oracle (identify 无探针)
 	"1522": "1521", "1523": "1521", "1524": "1521", "1525": "1521",
 	"1526": "1521", "2483": "1521", "2484": "1521",
-	// PostgreSQL
-	"5433": "5432", "5434": "5432", "25432": "5432",
-	// Redis
-	"6380": "6379", "16379": "6379", "26379": "6379",
-	// RDP
-	"13389": "3389", "23389": "3389", "33389": "3389",
-	// SMB
+	// SMB (identify 无探针)
 	"1445": "445", "4445": "445",
-	// MongoDB
-	"27018": "27017", "27019": "27017",
-	// Elasticsearch
-	"9201": "9200", "9300": "9200",
-	// Tomcat
+	// WebLogic / Tomcat / Elasticsearch (HTTP 判 web 靠兜底)
+	"7002": "7001", "9060": "7001",
 	"8081": "8080", "8082": "8080", "8083": "8080", "8084": "8080",
 	"8085": "8080", "8086": "8080", "8087": "8080", "8088": "8080",
 	"8089": "8080", "8090": "8080", "8443": "8080", "9080": "8080", "9443": "8080",
-	// WebLogic
-	"7002": "7001", "9060": "7001",
-	// LDAP (标准端口映射到5000)
-	"389": "5000", "636": "5000",
-	// VNC
-	"5901": "5900", "5902": "5900",
-	// WinRM
+	"9201": "9200", "9300": "9200",
+	// WinRM 5986(HTTPS) / RTSP 8554 / ActiveMQ Web控制台 8161
 	"5986": "5985",
-	// ActiveMQ Web控制台 → activemq 插件(键 61616, 插件按 HTTP /admin/ 探测)
-	"8161": "61616",
-	// RTSP
 	"8554": "554",
+	"8161": "61616",
 }
 
 // WinrmScan WinRM(WS-Management) 扫描入口。

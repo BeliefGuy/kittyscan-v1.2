@@ -40,6 +40,10 @@ func RdpScan(info *common.HostInfo) (tmperr error) {
 	var num = 0
 	var all = len(common.Userdict["rdp"]) * len(common.Passwords)
 	var mutex sync.Mutex
+	// 连续超时判定(2026-09-29, 与其他23个爆破插件对齐): 致命错误立即停、
+	// 连续 TimeoutStopThreshold 次超时才停整台、认证拒绝/其他错误清零计数。
+	// 非并发安全: 所有 worker 在 mutex 临界区内调用(与读 num 同一把锁)。
+	var judge common.ErrJudge
 	// brlist 带缓冲（容量=字典项总数）：任一 worker 成功置 signal 后，主协程仍可投递剩余
 	// 凭据而不被阻塞，保证 close(brlist) 与 wg.Wait() 在成功/失败两条路径上都能执行到。
 	brlist := make(chan Brutelist, all)
@@ -47,7 +51,7 @@ func RdpScan(info *common.HostInfo) (tmperr error) {
 
 	for i := 0; i < common.BruteThread; i++ {
 		wg.Add(1)
-		go worker(info.Host, common.Domain, port, &wg, brlist, &signal, &num, all, &mutex, common.Timeout)
+		go worker(info.Host, common.Domain, port, &wg, brlist, &signal, &num, all, &mutex, &judge, common.Timeout)
 	}
 
 	for _, user := range common.Userdict["rdp"] {
@@ -71,7 +75,7 @@ func RdpScan(info *common.HostInfo) (tmperr error) {
 	return tmperr
 }
 
-func worker(host, domain string, port int, wg *sync.WaitGroup, brlist chan Brutelist, signal *atomic.Bool, num *int, all int, mutex *sync.Mutex, timeout int64) {
+func worker(host, domain string, port int, wg *sync.WaitGroup, brlist chan Brutelist, signal *atomic.Bool, num *int, all int, mutex *sync.Mutex, judge *common.ErrJudge, timeout int64) {
 	defer wg.Done()
 	for one := range brlist {
 		if signal.Load() {
@@ -95,9 +99,16 @@ func worker(host, domain string, port int, wg *sync.WaitGroup, brlist chan Brute
 			// 消除"worker 无锁读 vs incrNum 持锁写"的数据竞争。
 			mutex.Lock()
 			cur := *num
+			// 连续超时判定与其他爆破插件对齐: 在同一临界区内调 judge
+			// (ErrJudge 非并发安全), 致命错误/连续3次超时 → 置 signal 停整台。
+			stop := judge.ShouldStop(err)
 			mutex.Unlock()
 			errlog := fmt.Sprintf("[-] (%v/%v) rdp %v:%v %v %v %v", cur, all, host, port, user, pass, err)
 			common.LogError(errlog)
+			if stop {
+				signal.Store(true)
+				return
+			}
 		}
 	}
 }

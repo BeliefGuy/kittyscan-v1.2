@@ -19,6 +19,7 @@ func RabbitmqScan(info *common.HostInfo) (tmperr error) {
 		return
 	}
 	starttime := time.Now().Unix()
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	for _, user := range common.Userdict["rabbitmq"] {
 		for _, pass := range common.Passwords {
 			pass = strings.Replace(pass, "{user}", user, -1)
@@ -29,7 +30,7 @@ func RabbitmqScan(info *common.HostInfo) (tmperr error) {
 				errlog := fmt.Sprintf("[-] rabbitmq %v:%v %v %v %v", info.Host, info.Ports, user, pass, err)
 				common.LogError(errlog)
 				tmperr = err
-				if common.CheckErrs(err) {
+				if judge.ShouldStop(err) {
 					return err
 				}
 				if time.Now().Unix()-starttime > (int64(len(common.Userdict["rabbitmq"])*len(common.Passwords)) * common.BruteTimeout2) {

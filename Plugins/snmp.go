@@ -40,6 +40,7 @@ func SnmpScan(info *common.HostInfo) (tmperr error) {
 		stopped bool // 终态已发生，close(stop) 只会执行一次
 		sucErr  error
 	)
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	stop := make(chan struct{})
 	// signalStop：调用方必须持有 mu；stopped 保证不会重复 close(stop)（panic）
 	signalStop := func() {
@@ -88,7 +89,7 @@ func SnmpScan(info *common.HostInfo) (tmperr error) {
 				errlog := fmt.Sprintf("[-] snmp %v:%v %v %v", info.Host, info.Ports, c.community, err)
 				common.LogError(errlog)
 				tmperr = err
-				if common.CheckErrs(err) {
+				if judge.ShouldStop(err) {
 					signalStop()
 					mu.Unlock()
 					return

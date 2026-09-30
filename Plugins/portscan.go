@@ -83,10 +83,11 @@ func PortConnect(addr Addr, respondingHosts chan<- string, adjustedTimeout int64
 	address := host + ":" + strconv.Itoa(port)
 
 	// 优先使用 SYN 扫描（半连接，更快）
+	// 2026-09-29: [port] 行不再在扫描期打印, 改由派发层输出(all/main 走
+	// IdentifyScan 在识别完成后打印 "[port] ip:port(svc)" 一行成型)。
 	if synAvailable {
 		timeout := time.Duration(adjustedTimeout) * time.Second
 		if SYNPortSend(host, port, timeout) {
-			common.LogSuccess("[port] " + address)
 			wg.Add(1)
 			respondingHosts <- address
 		}
@@ -97,7 +98,6 @@ func PortConnect(addr Addr, respondingHosts chan<- string, adjustedTimeout int64
 	conn, err := common.WrapperTcpWithTimeout("tcp4", address, time.Duration(adjustedTimeout)*time.Second)
 	if err == nil {
 		defer conn.Close()
-		common.LogSuccess("[port] " + address)
 		wg.Add(1)
 		respondingHosts <- address
 	}

@@ -71,6 +71,8 @@ func Scan(info common.HostInfo) {
 			if common.Scantype == "all" || common.Scantype == "main" {
 				switch {
 				case sPort == "135":
+					// 135/445 不走服务识别 → [port] 行(无服务后缀)在此直接打印
+					common.LogSuccess("[port] " + targetIP)
 					// 135/445 不走服务识别, 保留原特殊分支逻辑(MS17-010/WMI/RPC)
 					AddScan(web, sInfo, &ch, &wg)
 					AddScan(sPort, sInfo, &ch, &wg)
@@ -78,20 +80,30 @@ func Scan(info common.HostInfo) {
 						AddScan("1000005", sInfo, &ch, &wg)
 					}
 				case sPort == "445":
+					common.LogSuccess("[port] " + targetIP)
 					AddScan(web, sInfo, &ch, &wg)
 					// 保留 MS17-010 检测的同时补上 SMB 弱口令爆破(PluginMap["445"]=SmbScan);
 					// switch 分支互斥
 					AddScan(ms17010, sInfo, &ch, &wg)
 					AddScan(sPort, sInfo, &ch, &wg)
+					// CVE-2020-0796 SmbGhost 纯检测(单连接/无爆破, 成本≈0),
+					// 2026-09-29 用户批准自动派发; SmbScan2(双倍爆破)暂不并入, 仍 -m smb2 手动
+					AddScan("1000002", sInfo, &ch, &wg)
 				default:
-					// 服务识别驱动(identify.go): 先识别该端口是 Web 还是
-					// mysql/mssql/redis 等服务, 识别出服务→对应爆破+未授权插件;
-					// 识别为 Web 或未识别 → WebTitle + ServicePorts 端口表兜底,
-					// 兜底路径与原逻辑等价, 覆盖不回退。替代原先
-					// "无条件盲发HTTP + 固定端口表"的调度。
+					// 服务识别驱动(identify.go): [port] 行由 IdentifyScan 在识别完成后
+					// 打印(带 (svc) 后缀, 2026-09-29 输出格式), 此处不再打印;
+					// 识别出服务→对应爆破+未授权插件; 识别为 Web 或未识别 → WebTitle
+					// + ServicePorts 兜底(每服务 1 个兜底端口)。
 					AddScan(IdentifyKey, sInfo, &ch, &wg)
 				}
 			} else {
+				// 非 all/main 不走识别: [port] 行在此打印(原 PortConnect 扫描期打印
+				// 后移到派发点, 使 -hf ip:port 目标也输出 [port] 行, 与扫描路径一致)。
+				// NoPortScan 模式(webpoc/fingeronly/hostname)未真实探测端口,
+				// 与原行为一致不打印(避免对未探测端口声称"开放")。
+				if common.Scantype != "webpoc" && common.Scantype != "fingeronly" && common.Scantype != "hostname" {
+					common.LogSuccess("[port] " + targetIP)
+				}
 				scantype := strconv.Itoa(common.PORTList[common.Scantype])
 				// -m portscan 的派发键为字面量 "0"(PORTList["portscan"]=0)：
 				// PluginMap/PortToPlugin 均查不到 "0"，下发只会给每个开放端口

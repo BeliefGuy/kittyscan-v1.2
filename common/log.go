@@ -105,15 +105,15 @@ func SaveLog() {
 			} else {
 				switch {
 				case strings.HasPrefix(*result, "[port]"):
-					fmt.Println(*result)                        // 端口 → 白色
+					fmt.Println(*result) // 端口 → 白色
 				case strings.HasPrefix(*result, "[web]"):
 					fmt.Printf("\033[38;5;114m%s\033[0m\n", *result) // Web探测 → 护眼绿
 				case strings.HasPrefix(*result, "[info]"):
-					color.Green(*result)                        // 指纹识别 → 绿色
+					color.Green(*result) // 指纹识别 → 绿色
 				case strings.HasPrefix(*result, "[vul]"):
-					color.Red(*result)                          // 漏洞发现 → 红色
+					color.Red(*result) // 漏洞发现 → 红色
 				default:
-					fmt.Println(*result)                        // 其他 → 白色
+					fmt.Println(*result) // 其他 → 白色
 				}
 			}
 			os.Stdout.Sync() // 强制刷出控制台缓冲，防止 Windows cmd 卡住
@@ -231,4 +231,82 @@ func CheckErrs(err error) bool {
 		}
 	}
 	return false
+}
+
+// ---------------------------------------------------------------------------
+// 爆破错误分级判定(2026-09-29, 用户批准的"连续超时计数方案")
+//
+// 背景: 原 CheckErrs 把 "i/o timeout" 与致命错误混为一谈 —— 公网慢链路上
+// 爆破的第一次握手超时就 signalStop 砍掉整台主机(实测默认字典只试 1~5 次),
+// 完整字典永远跑不完。
+//
+// 新语义(逻辑流程不变, 只改超时的处置):
+//   - 致命错误(连接被拒/关闭/协议不符等, 重试无意义) → 与原来一样立即停;
+//   - 超时类错误 → 跳过本组合继续下一组合(下一次连接本身就是一次重试),
+//     连续达到 TimeoutStopThreshold=3 次超时才判定目标不可达并按原流程停;
+//   - 任意非超时结果(认证拒绝/成功/其他错误) → 清零连续超时计数。
+//
+// ErrJudge 用法: 每个爆破插件在 Scan 函数外层作用域声明一次(所有 worker 共享,
+// 绝不能声明在 worker goroutine 内部), 在原 CheckErrs(err) 的调用点替换为
+// judge.ShouldStop(err), 停机分支(signalStop/close(stop))保持原样。
+// 非并发安全: 必须在调用方已持 mu 的临界区内调用(与原 CheckErrs 调用点一致)。
+// ---------------------------------------------------------------------------
+
+// TimeoutStopThreshold 连续超时多少次后判定目标不可达, 终止该目标的爆破。
+const TimeoutStopThreshold = 3
+
+// IsTimeoutErr 判定"超时类"错误: 语义是"对端在超时窗口内没响应"。
+// 命中即值得重试, 不应立即砍掉整台主机的爆破。
+// 关键词顺序无要求; Windows ConnectEx 超时文案 "did not properly respond"
+// 与 Go 的 "i/o timeout"/"deadline exceeded" 一并归入本类。
+// 注: 必须先于 CheckErrs 判定 —— Windows 的超时文案同时含 "A connection
+// attempt failed"(在原致命列表里), 不分流会退化回旧行为。
+func IsTimeoutErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	for _, key := range []string{
+		"i/o timeout",
+		"timeout",
+		"deadline exceeded",
+		"did not properly respond",
+	} {
+		if strings.Contains(s, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckErrsFatal 非超时且命中原 CheckErrs 致命列表 → 立即停。
+// 超时类错误恒返回 false(交给 ErrJudge 计数)。
+func CheckErrsFatal(err error) bool {
+	if err == nil || IsTimeoutErr(err) {
+		return false
+	}
+	return CheckErrs(err)
+}
+
+// ErrJudge 单次爆破调用(一台 host:port)的错误分级判定器。
+// 记录连续超时次数, 语义见文件内说明。零值可用。
+type ErrJudge struct {
+	consecutiveTimeouts int
+}
+
+// ShouldStop 该错误是否应终止本次爆破。
+//   - err==nil(成功或"认证拒绝但无错误") → 清零计数, false;
+//   - 超时类 → 计数+1, 达到 TimeoutStopThreshold 才 true;
+//   - 其他错误 → 清零计数, 命中致命列表 true(与原 CheckErrs 语义一致)。
+func (j *ErrJudge) ShouldStop(err error) bool {
+	if err == nil {
+		j.consecutiveTimeouts = 0
+		return false
+	}
+	if IsTimeoutErr(err) {
+		j.consecutiveTimeouts++
+		return j.consecutiveTimeouts >= TimeoutStopThreshold
+	}
+	j.consecutiveTimeouts = 0
+	return CheckErrs(err)
 }

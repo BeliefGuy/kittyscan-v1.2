@@ -12,7 +12,15 @@ import (
 	"github.com/hirochachacha/go-smb2"
 )
 
+// SmbScan2 SMB2/3 爆破入口(PluginMap["1000004"], 仅 `-m smb2` 手动触发)。
+// 2026-09-29 融合后主体改名 smb2Brute(供 SmbScan 方言路由复用); 本包装保留
+// 原注册键与原语义: 不做方言探测, 强制走 go-smb2(SMB2/3 + -hash PTH + share 枚举)。
 func SmbScan2(info *common.HostInfo) (tmperr error) {
+	return smb2Brute(info)
+}
+
+// smb2Brute SMB2/3 协议弱口令爆破(原 SmbScan2 主体, go-smb2 栈, 逻辑零改动, 仅改名)。
+func smb2Brute(info *common.HostInfo) (tmperr error) {
 	if common.IsBrute {
 		return nil
 	}
@@ -59,6 +67,7 @@ func SmbScan2(info *common.HostInfo) (tmperr error) {
 		stopped bool // 终态已发生，close(stop) 只会执行一次
 		sucErr  error
 	)
+	judge := common.ErrJudge{} // 连续超时判定: 超时3次才停, 致命错误立即停(2026-09-29)
 	stop := make(chan struct{})
 	// signalStop：调用方必须持有 mu；stopped 保证不会重复 close(stop)（panic）
 	signalStop := func() {
@@ -131,7 +140,7 @@ func SmbScan2(info *common.HostInfo) (tmperr error) {
 				errlog = strings.Replace(errlog, "\n", " ", -1)
 				common.LogError(errlog)
 				tmperr = err
-				if common.CheckErrs(err) {
+				if judge.ShouldStop(err) {
 					signalStop()
 					mu.Unlock()
 					return
