@@ -1,4 +1,4 @@
-# kittyscan v1.2
+# kittyscan v1.3
 [中文][url-doczh]
 
 > **This project is a fork of [fscan](https://github.com/shadow1ng/fscan) 1.8.4** (MIT License · Copyright (c) 2021 shadow1ng).
@@ -12,11 +12,12 @@
 An intranet comprehensive scanning tool, convenient for one-click automatic and omnidirectional scanning.
 It supports host alive detection, port scanning, brute forcing of common services, MS17-010, Redis batch public key writing, scheduled-task reverse shell, reading Windows NIC information, web fingerprinting, web vulnerability scanning, NetBIOS detection and domain controller identification.
 
-On top of fscan 1.8.4, kittyscan keeps improving in three directions:
+On top of fscan 1.8.4, kittyscan keeps improving in four directions:
 
-- **Wider coverage**: 24 → 41 service plugins, 386 → 688 POCs, 21 → 143 default ports, expanded dictionaries and brute-force services;
+- **Wider coverage**: 24 → 41 service plugins, 386 → 688 POCs, 21 → 143 default ports, expanded dictionaries and brute-force services; from v1.3 the web fingerprint rules grow 206 → 7,611 (brand-family merged groups plus long-tail products; identification only, no POC convergence mapping);
 - **More accurate detection**: fingerprint rules and POC false positives tightened against nuclei templates (3 dead rules revived, high-FP POCs removed); detection details fixed across the board (response-header key case, GBK encoding, timeouts);
 - **More stable**: fixed database brute-force hangs (no IO timeout), RDP brute-force deadlock, 727 concurrency DATA RACEs and Redis RESP parsing corruption — verified with `-race`, real-world environments and a target machine.
+- **Identify-driven dispatch (core of v1.3)**: a new service-identification layer probes every open port (banner / protocol / TLS), prints a `[port] ip:port(service)` suffix and **dispatches the matching brute-force / unauthorized-access plugin**; on failure it falls back to WebTitle + port-table dual-track defaults. Measured against 14 services on Quake at non-standard ports: 90%~100% identification on live, feature-bearing targets.
 
 # 2. Functions
 
@@ -24,6 +25,7 @@ On top of fscan 1.8.4, kittyscan keeps improving in three directions:
 
 * Alive detection (ICMP / `-ping`)
 * Port scanning (`-syn` half-open scan available, requires admin/root)
+* **Service identification (v1.3)**: every open port is probed (banner / active protocol probes for SSH/FTP/Telnet/VNC/Rsync/MySQL/MSSQL/PostgreSQL/MongoDB/Redis/Memcached/Kafka/RDP/AMQP plus TLS-Web/TLS-Redis/TLS-AMQP), printing a `[port] ip:port(service)` suffix and dispatching the matching plugin; on failure it falls back to WebTitle and the port table
 * Pipeline scheduling: discovered ports immediately trigger WebTitle and service brute force in parallel
 
 2. Brute force:
@@ -62,16 +64,17 @@ On top of fscan 1.8.4, kittyscan keeps improving in three directions:
 
 ## 3.1 Scale comparison
 
-| Item | fscan 1.8.4 | kittyscan v1.2 |
+| Item | fscan 1.8.4 | kittyscan v1.3 |
 |---|---|---|
 | Service plugins (`Plugins/*.go`) | 24 | **41** |
 | POCs (`WebScan/pocs/*.yml`) | 386 | **688** |
+| Web fingerprint rules (`RuleDatas` entries) | 206 | **7,611** |
 | Default scan ports | 21 | **143** |
-| Go source lines | ~7,700 | **~14,200** |
+| Go source lines | ~7,700 | **~22,300** |
 
 Default behavior differences:
 
-| Item | fscan 1.8.4 | kittyscan v1.2 |
+| Item | fscan 1.8.4 | kittyscan v1.3 |
 |---|---|---|
 | Default threads `-t` | 600 | 100 (stealthier) |
 | Default output file `-o` | `result.txt` | `output.txt` |
@@ -81,6 +84,16 @@ Default behavior differences:
 | Help | none | `-help` (Chinese) / `-hen` (English), both with examples |
 
 ## 3.2 New features
+
+### Identify-driven dispatch (v1.3 core)
+
+> Upstream fscan dispatches blindly by port table (port 22 ⇒ SSH dictionary). From v1.3 identification comes first (`Plugins/identify.go`, which does not exist upstream):
+
+- **Three-stage identification**: stage 1 opens the connection and sends an HTTP GET while reading server-first banners (SSH/FTP/Telnet/VNC/Rsync/MySQL/MariaDB/SMTP classified by response) → stage 2 active protocol probes (Redis/Memcached/MongoDB/MSSQL/PostgreSQL/Kafka/RDP/AMQP, **8 probes run concurrently** — total time sum → max) → stage 3 TLS probes (TLS-Web / TLS-Redis / TLS-AMQP)
+- **Single-line output**: `[port] ip:port(service)` (e.g. `[port] 5.161.195.106:22(ssh)`, web normalized to `http`; fingerprint `[info]` and `[web]` unchanged)
+- **Precise dispatch**: on a hit, `ServicePluginKey` invokes the matching brute-force / unauthorized plugin directly — **non-standard ports (2222/6380/13389/27018…) all trigger**, no fixed port table required; on failure it falls back to the original path (WebTitle + port-table defaults)
+- **Dual-track port table**: identify-covered services keep only one fallback port; services identify can never detect (Oracle/LDAP/SNMP/SVN/ActiveMQ/RTSP — no probe) keep the full non-standard fallback set, removing "scanned but nothing dispatched"
+- **Measured on the public internet**: Quake 14 services × 60 assets each at **non-fallback ports** — 90%~100% identification on live feature-bearing targets (see 3.4)
 
 ### New service plugins (24 → 41)
 
@@ -123,6 +136,11 @@ Default behavior differences:
 * **Redirect-derived POC bases** (enabled by default, disable with `-no302base`): on top of the two bases above, a same-host jump into a subdirectory adds that directory prefix (e.g. `http://host/dev/`), a jump to a root-level file adds nothing; a cross-host jump adds the new host's root only (its path depth ignored)
 * **Graceful Ctrl+C**: stop dispatching → flush in-flight results (8s guard) → print completion stats → exit code 130
 * **Engineering**: `build.py` one-shot multi-platform build (optional UPX, skipped automatically when not installed)
+* **SMB dual-protocol auto-routing (v1.3)**: the 445 branch dispatches four ways (Web + MS17-010 + SMB brute force + **SmbGhost check — upstream shipped that `AddScan("1000002"...)` line commented out**); `smb_probe` dialect detection (reuses the negotiate packet, reads the `\xffSMB`/`\xfeSMB` magic) routes to the smb1 (stacktitan) / smb2 (go-smb2) backend so the dictionary runs once instead of twice; `-hash` goes straight to smb2 and `-m smb2` keeps its old meaning
+* **Three POC-convergence policies (v1.3)**: ① fingerprint-converged rounds always merge a fixed **generic whitelist** (`sensitive-file-exposure`, `common-endpoint-exposure` and 3 more — otherwise a recognized site would skip `.git/config`, `/actuator` and other baseline probes) ② a fingerprint **with mapping but zero matching POCs falls back to the full set** (previously it silently ran nothing) ③ **multi-fingerprint union with de-duplication**: one round per base = the de-duplicated union of every fingerprint's POC set (previously K unmapped fingerprints meant K identical full-scan rounds; measured 1539 → 774 on a two-fingerprint page, full ⊇ converged so nothing is lost)
+* **`-full` upgraded to forced full scan (v1.3)**: upstream only enabled all Shiro keys → now the strongest override at the top of `filterPoc`, **every URL runs all 688 POCs, skipping fingerprint convergence / `-pocname` filtering** (all-Shiro-keys behavior retained)
+* **Web fingerprint library 206 → 7,611 rules (v1.3)**: two batches of 7,404 entries curated from the chunsou fingerprint set (brand-family merged groups plus long-tail products), keyword-level quality filtering (≥6 chars or path-bearing), `icon_hash` and short-keyword entries excluded, family/solo de-duplication; **identification only — `PocDatas` convergence table untouched** (worst case of a false positive is a mislabeled `[info]` plus one full-scan round, never a miss)
+* **RST close for connect scans (v1.3)**: `SetLinger(0)` closes with RST instead of entering TIME_WAIT, preventing local-port exhaustion (≈16k dynamic ports on Windows → `WSAEADDRNOTAVAIL` misses) on large port ranges; TIME_WAIT control test shows 0 added by the scanner
 
 ## 3.3 Fixes and improvements vs fscan 1.8.4
 
@@ -134,6 +152,7 @@ Default behavior differences:
 | Missed detections & scope | Mismatched response-header key case raised `no such key`, permanently breaking ~30 POCs (incl. the upstream `alibaba-nacos` POC) → written under both canonical and lowercase keys; cross-host 302 sent POCs to an external domain while missing the original target → bases computed explicitly (see 3.2); `-hn` ignored `ip:port` targets from `-hf` (**authorization boundary**) → filtering moved to the `ParseIP` source; `-pa` broke port convergence; ICMP one-to-many mapping reported only one alive host for `localhost` + `127.0.0.1`; GBK pages missed Chinese fingerprints (upstream decoded after fingerprint injection) → decoding moved before injection; `-br` only honored for RDP upstream → extended to every brute module (~3.6x speedup); `-nobr` no longer implicitly skips vulnerability detection |
 | False-positive control | Systematic fcgi false positives corrected; 5 fingerprint rules tightened (nuclei-template based) and 3 dead rules revived; Redis `-rf`/`-rs` skipped config recovery on errors → could overwrite the target's real public key, recovery now deferred over every return path |
 | Output & interaction | `-silent` had only 1 honoring site upstream → now converged across 17 sites (status lines and load summaries silenced too); `-json` output guaranteed to be valid NDJSON; invalid parameters and targets now fail loudly instead of silently; `os.Stdout` flushing (upstream output lagged on Windows cmd); `-rf`/`-sshkey`/`-pocpath` accept BOM / UTF-16 encoded files; brute timeouts tiered (SSH 1s / others 2s) |
+| Identification & brute force (v1.3) | all-or-nothing brute timeout (upstream `CheckErrs` stopped the whole target on the first error) → **stop only after 3 consecutive timeouts**, counters reset on auth rejection/success, fatal errors stop immediately (`ErrJudge`, wired into all 24 brute sites); server-first banner race (stage-1 sends GET first, peer RST drops the buffered banner → VNC/MySQL/FTP/Telnet misses) → stage-1b pure-read fallback; truncated MySQL greeting and host-not-allowed ERR packet (code 1130) misses → 1b trigger widened + ERR-packet detection; Telnet IAC first-byte check too narrow and text banners unrecognized → `Contains` IAC + keyword detection; stage-2 serial probe budget exhaustion (silent targets each burned 3s, `postgres`/`rdp` probes never reached) → 8 concurrent probes (sum → max: real RDP on 13389 went 0% → 80%, 5433 68% → 93%); SSH brute timeout 2s → 3s (public cross-province RTT) |
 
 ## 3.4 Verification
 
@@ -142,12 +161,16 @@ Default behavior differences:
 * Real-world verification: item-by-item checks against public assets and a Kali range (protocol-level comparisons)
 * Target-machine tests: RDP / WinRM correct-password and concurrency on a Windows target (correct password prints `[vul]`, wrong password gives no false positives); full Redis matrix on Kali (public key / crontab written, target config restored)
 * Local fake-range regression: POC bases, proxy scoping, rule short-circuit fields and redirect bases verified case by case
+* **v1.3 identification chain**: Quake 14 services × 60 assets each at non-standard ports (**all outside fallback ports**, queried as `service:"x" and port:"<nearby non-standard>"`) — 90%~100% identification on live feature-bearing targets; low-score groups were sampled and attributed to dead assets / half-open silent drops (no response feature ⇒ correctly unidentifiable): redis 6380 went 18% → **100%** (TLS-Redis probe), rdp 13389 **0% → 80%** (concurrent stage-2), mysql 77% → 97%, telnet missed samples 2/2 fixed, TLS-AMQP hit on a real target
+* **v1.3 fake-range tests**: six identification smokes (truncated MySQL / MySQL-ERR / VNC race / TLS-Redis / fake RDP / TLS-AMQP); TIME_WAIT control (3 entries after a normal FIN close vs 0 added by 5 scanner runs); multi-fingerprint union de-dup matrix (5 scenarios + coverage assertion: `gateway.php` hit exactly once)
+* **v1.3 target machines**: real SMB1 on Win7 (dialect routing plus a bonus MS17-010 hit) and real RDP on Win11 (ErrJudge counter reset verified across 5/5 runs under NLA)
 
 ## 3.5 Known limitations
 
 * With `-br N>1`, plugins that report `[vul]` inside a connection may print duplicates when several workers succeed; **use `-br 1` for Redis**
 * The WinRM canary leaves one failed login of a non-existent account in the target's security log (the cost of a false-positive-proof design)
 * `-noredis` only skips the write action; unauthorized detection and brute force still run
+* **v1.3 identify-driven semantics**: when identification fails and the port is not in the fallback table (a non-standard port), **no plugin is dispatched for that port** — inherent to "identification first" (the fallback table only keeps one standard port per covered service plus the full set for probe-less services); targets that accept the connection but have their payload dropped by a firewall are silently half-open with no response feature, so being unidentifiable is correct behavior
 
 # 4. Instructions
 
@@ -250,7 +273,7 @@ Web Scan:
                 e.g.: -pocname weblogic
   -pocpath string  Custom POC directory
                 e.g.: -pocpath /path/to/pocs
-  -full        Full POC scan
+  -full        Force full POC scan on every URL (skip fingerprint filtering; shiro all keys)
   -dns         DnsLog blind detection (default: enabled)
   -nodns       Disable DnsLog detection
   -no302base   Disable redirect-derived extra POC bases (default: enabled)

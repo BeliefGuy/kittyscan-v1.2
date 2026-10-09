@@ -8,7 +8,7 @@ import (
 func Banner() {
 	banner := "\033[36m" + `      ╱|、
      (˚ˎ 。7
-      |、˜〵         K1ttySc4n v 1.2
+      |、˜〵         K1ttySc4n v 1.3
       じしˍ,)ノ` + "\033[38;5;208m" + `      modified by laxy` + "\033[36m" + `
      ┌─────┐
      │🐾🐾 │

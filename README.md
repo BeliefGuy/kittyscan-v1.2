@@ -1,4 +1,4 @@
-# kittyscan v1.2
+# kittyscan v1.3
 
 [English][url-docen]
 
@@ -13,11 +13,12 @@
 一款内网综合扫描工具，方便一键自动化、全方位漏扫扫描。
 支持主机存活探测、端口扫描、常见服务的爆破、MS17-010、Redis 批量写公钥、计划任务反弹 shell、读取 Win 网卡信息、Web 指纹识别、Web 漏洞扫描、NetBIOS 探测、域控识别等功能。
 
-kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
+kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 
-- **覆盖更广**：服务插件 24 → 41，POC 386 → 688，默认端口 21 → 143，密码字典、爆破服务同步扩充；
+- **覆盖更广**：服务插件 24 → 41，POC 386 → 688，默认端口 21 → 143，密码字典、爆破服务同步扩充；v1.3 起 Web 指纹规则 206 → 7,611 条（含品牌家族合并组与长尾小众产品，仅识别不收敛）；
 - **判定更准**：按 nuclei 模板收紧指纹规则与 POC 误报（复活 3 条失效规则、剔除只判 `status=200` 的高误报 POC），POC 引擎的响应头键、GBK 编码、超时等判定细节逐项修正；
-- **跑得更稳**：数据库爆破无超时挂死、RDP 爆破死锁、727 个并发 DATA RACE、Redis RESP 解析错位等稳定性问题全部修复，并通过 `-race`、真实环境、靶机三类验证。
+- **跑得更稳**：数据库爆破无超时挂死、RDP 爆破死锁、727 个并发 DATA RACE、Redis RESP 解析错位等稳定性问题全部修复，并通过 `-race`、真实环境、靶机三类验证；
+- **识别驱动（v1.3 核心）**：新增服务识别层 —— 端口开放后先做 banner/协议/TLS 探测，输出 `[port] ip:port(服务)` 并**精准派发**对应爆破/未授权插件，识别失败回退 WebTitle + 端口表双轨兜底；公网 Quake 14 服务非标端口实测，活特征口径识别率 90%~100%。
 
 # 2. 主要功能
 
@@ -25,6 +26,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 
 - 存活探测（ICMP / `-ping`）
 - 端口扫描（支持 `-syn` 半连接扫描，需管理员/root）
+- **服务识别**（v1.3）：开放端口逐个做 banner/协议主动探测（SSH/FTP/Telnet/VNC/Rsync/MySQL/MSSQL/PostgreSQL/MongoDB/Redis/Memcached/Kafka/RDP/AMQP 等 + TLS-Web/TLS-Redis/TLS-AMQP），输出 `[port] ip:port(服务)` 后缀并派发对应插件；识别失败回退 Web 标题与端口表
 - 流水线调度：发现端口即并行触发 WebTitle 与服务爆破
 
 2. 爆破功能：
@@ -63,16 +65,17 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 
 ## 3.1 规模对比
 
-| 项目 | fscan 1.8.4 | kittyscan v1.2 |
+| 项目 | fscan 1.8.4 | kittyscan v1.3 |
 | --- | --- | --- |
 | 服务插件（`Plugins/*.go`） | 24 | **41** |
 | POC（`WebScan/pocs/*.yml`） | 386 | **688** |
+| Web 指纹规则（`RuleDatas` 条目） | 206 | **7,611** |
 | 默认扫描端口 | 21 | **143** |
-| Go 源码行数 | 约 7,700 | **约 14,200** |
+| Go 源码行数 | 约 7,700 | **约 22,300** |
 
 默认行为差异：
 
-| 项目 | fscan 1.8.4 | kittyscan v1.2 |
+| 项目 | fscan 1.8.4 | kittyscan v1.3 |
 | --- | --- | --- |
 | 默认线程数 `-t` | 600 | 100（更隐蔽） |
 | 默认输出文件 `-o` | `result.txt` | `output.txt` |
@@ -82,6 +85,16 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 | 帮助 | 无 | `-help` 中文帮助 / `-hen` 英文帮助（均带样例） |
 
 ## 3.2 新增功能
+
+### 服务识别驱动派发（v1.3 核心）
+
+> 原版 fscan 按端口表盲派发（扫到 22 就打 SSH 字典）。v1.3 起改为**识别优先**（`Plugins/identify.go`，原版无此文件）：
+
+- **三阶段识别**：阶段1 连接后先发 HTTP GET 同时收取先发 banner（SSH/FTP/Telnet/VNC/Rsync/MySQL/MariaDB/SMTP 等按响应特征分类）→ 阶段2 协议主动探测（Redis/Memcached/MongoDB/MSSQL/PostgreSQL/Kafka/RDP/AMQP 八探针**并发**执行，总耗时 sum→max）→ 阶段3 TLS 探测（TLS-Web / TLS-Redis / TLS-AMQP）
+- **一行成型输出**：`[port] ip:port(服务)`（如 `[port] 5.161.195.106:22(ssh)`，web 归一显示为 `http`；指纹 `[info]` 与 `[web]` 不变）
+- **精准派发**：识别命中 → `ServicePluginKey` 直接调用对应爆破/未授权插件——**非标端口（2222/6380/13389/27018…）全部可触发**，不依赖固定端口表；识别失败 → 回退原路径（WebTitle + 端口表兜底）
+- **双轨制端口表**：已识别的 13 服务仅保留 1 个兜底端口；identify 永远测不出的服务（Oracle/LDAP/SNMP/SVN/ActiveMQ/RTSP 等无探针）保留完整非标端口兜底集合，消除"扫了却无插件派发"的白扫
+- **公网实测**：Quake 14 服务 × 各 60 资产、**全部避开兜底端口**——活特征口径识别率 90%~100%（详见 3.4）
 
 ### 新增服务插件（原版 24 个 → 41 个）
 
@@ -124,6 +137,11 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 - **302 跳转派生 POC 基准**（默认开启，`-no302base` 关闭）：在上述两条基准之外，同域跳子目录则追加该目录前缀（如 `http://host/dev/`），跳根级文件（`/login.html`）不追加；跨域则追加新 host 的根（忽略其路径深度）
 - **Ctrl+C 优雅退出**：停止派发新任务 → 在途结果落盘（8s 兜底）→ 打印完成统计 → 退出码 130
 - **工程化**：`build.py` 一键多平台构建（UPX 压缩可选，未安装自动跳过）
+- **SMB 双协议自动路由（v1.3）**：445 分支四路派发（Web + MS17-010 + SMB 爆破 + **SmbGhost 自动检测**——原版 `AddScan("1000002"...)` 处于注释禁用状态）；`smb_probe` 方言探测（复用 negotiate 报文读 `\xffSMB`/`\xfeSMB` 魔数）按方言路由 smb1(stacktitan)/smb2(go-smb2) 后端，全字典单遍不双倍；`-hash` 直走 smb2、`-m smb2` 语义不变
+- **POC 收敛三策略（v1.3）**：① 指纹收敛轮**固定并入通用白名单**（`sensitive-file-exposure`、`common-endpoint-exposure` 等 5 个基础暴露面 POC——否则命中指纹的站点反而跳过 `.git/config`、`/actuator` 等基础探测）② 指纹有映射但收敛 **0 命中 → 回退全量**（原静默空转 0 个）③ **多指纹并集去重**：每基准只打一轮 = 各指纹 POC 集的去重并集（原 K 个无映射指纹 = K 轮完全重复的全量；实测双指纹 1539→774，全量 ⊇ 收敛集零漏报）
+- **`-full` 升级为强制全量（v1.3）**：原版仅 Shiro 全部 Key → 现为 `filterPoc` 顶部最强覆盖，**每个 URL 跳过指纹收敛/-pocname 筛选执行全量 688 POC**（Shiro 全 Key 行为保留）
+- **Web 指纹库 206 → 7,611 条（v1.3）**：chunsou 指纹库两批精选 7,404 条（品牌家族合并组 + 长尾小众产品），kw 级质量过滤（≥6 字符或含路径）、`icon_hash` 与短词高危排除、家族/单体防重；**仅识别不加映射**（不改 `PocDatas` 收敛表——误报最坏代价为 `[info]` 标注 + 该轮全量，不漏报）
+- **connect 扫描 RST 关闭（v1.3）**：`SetLinger(0)` 关闭即 RST 不进 TIME_WAIT，防 Windows 动态端口（约 16k）高速扫大端口段耗尽（`WSAEADDRNOTAVAIL` 漏报）；TIME_WAIT 对照实测扫描器新增 0
 
 ## 3.3 相对 fscan 1.8.4 的修复与优化
 
@@ -135,6 +153,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 | 漏报与越界 | POC 响应 header 键大小写不一致 → `no such key` 使约 30 个 POC 永久失效（含**原版** POC `alibaba-nacos`）→ canonical/小写双写；302 跨域把 POC 打到外部域名且漏掉原始目标 → 基准显式计算（见 3.2）；`-hn` 对 `-hf` 的 `ip:port` 目标失效（授权边界）→ 过滤前移到 `ParseIP` 源头；`-pa` 追加端口破坏端口收敛；ICMP 一对多映射使 `localhost` 与 `127.0.0.1` 只报一个存活；GBK 页面中文指纹不命中（原版解码发生在指纹注入之后）→ 解码提前到注入之前；`-br` 原版仅 RDP 生效 → 扩展到全部爆破模块（实测约 3.6 倍提速）；`-nobr` 由连带跳过漏洞检测改为只跳爆破 |
 | 误报控制 | fcgi 系统性误报判定修正；指纹规则收紧 5 条（依据 nuclei 模板）并复活 3 条失效规则；Redis `-rf`/`-rs` 写入失败时跳过配置恢复 → 可能覆盖目标真实公钥，恢复改为 `defer` 覆盖全部返回路径 |
 | 输出与交互 | `-silent` 原版仅 1 处生效点 → 现全局 17 处收敛（状态行/加载汇总均静默）；`-json` 输出保证为合法 NDJSON；非法参数与非法目标由静默改为明确报错；`os.Stdout` 实时刷新（原版 Windows 下输出卡顿）；`-rf`/`-sshkey`/`-pocpath` 支持 BOM/UTF-16 编码文件；爆破超时分级（SSH 1s / 其他 2s） |
+| 识别与爆破（v1.3） | 爆破超时一刀切（原 `CheckErrs` 首个错误即停整个目标）→ **连续 3 次超时才停**、认证拒绝/成功清零计数、致命错误立即停（`ErrJudge`，24 个爆破点全接入）；server-first banner 竞态（阶段1 先发 GET 后对端 RST 丢弃缓冲 banner → VNC/MySQL/FTP/Telnet 漏识别）→ 阶段1b 纯读补探测；MySQL 残截 greeting 与 host-not-allowed ERR 包（code 1130）漏识别 → 1b 触发放宽 + ERR 包判定；Telnet IAC 首字节判定过窄 + 文本 banner 无判定 → `Contains` IAC + 关键词判定；stage2 协议探测串行预算耗尽（静默目标逐个吃满 3s，`postgres`/`rdp` 探针永远轮不到）→ 八探针并发（sum→max：13389 真 RDP 识别 0%→80%、5433 68%→93%）；SSH 爆破超时 2s→3s（公网跨省 RTT） |
 
 ## 3.4 验证情况
 
@@ -143,12 +162,16 @@ kittyscan 在 fscan 1.8.4 的基础上，沿三个方向持续改进：
 - 真实环境验证：公网资产与 Kali 靶场逐项实测（协议类逐项对拍）
 - 靶机实测：Windows 靶机 RDP / WinRM 正确口令与并发（正确口令出 `[vul]`、错误口令无误报）；Kali Redis 全矩阵（写公钥 / 写 cron 后目标配置恢复）
 - 本地假靶场回归：POC 基准、代理作用域、规则短路字段、302 基准等行为逐例验证
+- **v1.3 识别链**：Quake 14 服务 × 各 60 资产非标端口实测（**全部避开兜底端口**，`service:"x" and port:"相近非标"` 口径）——活特征口径识别率 90%~100%，低分组经逐目标抽样甄别为死资产/半开静默（无响应特征识别不出属正确行为）；关键指标：redis 6380 识别率 18% → **100%**（TLS-Redis 探针）、rdp 13389 **0% → 80%**（stage2 并发）、mysql 77% → 97%、telnet 漏样本 2/2 修复、TLS-AMQP 真目标命中
+- **v1.3 本地假靶场**：残截 MySQL / MySQL-ERR / VNC 竞态 / TLS-Redis / fake RDP / TLS-AMQP 六类识别烟雾；TIME_WAIT 对照（正常 FIN 关闭 3 个 vs 扫描器 5 次 0 新增）；多指纹并集去重矩阵（5 场景 + 覆盖断言 `gateway.php` 仅 1 次）
+- **v1.3 靶机**：Win7 真实 SMB1（方言路由链路 + 额外命中 MS17-010）、Win11 真实 RDP（NLA 下 ErrJudge 认证拒绝清零计数 5/5 跑完）
 
 ## 3.5 已知限制
 
 - `-br N>1` 时，`[vul]` 在连接内的插件若多 worker 同时成功可能输出多条；**Redis 建议 `-br 1`**
 - WinRM canary 检测会在目标安全日志留下 1 次不存在账号的失败登录（防误报的设计代价）
 - `-noredis` 只跳过写入动作，未授权检测与爆破照常执行
+- **v1.3 识别驱动语义**：识别失败且端口不在兜底表（非标端口）时该端口**无插件派发**——这是"识别优先"设计的固有语义（兜底表仅覆盖每服务 1 个标准端口 + 无探针服务全集）；连接通但 payload 被防火墙丢弃的半开静默目标无响应特征，不可识别属正确行为
 
 # 4. 使用说明
 
@@ -256,7 +279,7 @@ Web扫描:
                 例: -pocname weblogic
   -pocpath string  自定义POC目录
                 例: -pocpath /path/to/pocs
-  -full        POC全量扫描（如Shiro全部Key）
+  -full        强制每个URL全量执行所有POC（跳过指纹收敛；Shiro测试全部Key）
   -dns         使用DnsLog检测无回显漏洞（默认开启）
   -nodns       禁用DnsLog反连检测
   -no302base   关闭302跳转派生的附加POC基准（默认开启）
