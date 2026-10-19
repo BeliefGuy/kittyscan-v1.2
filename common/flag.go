@@ -64,7 +64,7 @@ func Flag(Info *HostInfo) {
 	flag.StringVar(&CeyeDomain, "ceye-domain", "", "覆盖ceye二级域名（留空则使用内置默认值），例如: -ceye-domain abc.ceye.io")
 	flag.BoolVar(&SynScan, "syn", false, "SYN半连接扫描（默认已自动优先SYN，本参数保留兼容；需管理员/root权限）")
 	flag.BoolVar(&TcpScan, "tcp", false, "强制使用TCP Connect扫描（跳过SYN引擎；默认为SYN优先+不可用时自动降级）")
-	flag.Int64Var(&SynRate, "synrate", 0, "SYN引擎发包速率上限(包/秒)，0=自动20000，负数=不限速，仅SYN引擎生效")
+	flag.Int64Var(&SynRate, "synrate", 0, "SYN引擎发包速率上限(包/秒)，0=自动3000，负数=不限速，仅SYN引擎生效")
 	flag.BoolVar(&Silent, "silent", false, "静默模式（不输出扫描过程）")
 	flag.BoolVar(&Nocolor, "nocolor", false, "禁用彩色输出")
 	flag.BoolVar(&JsonOutput, "json", false, "JSON格式输出结果")
@@ -140,7 +140,7 @@ func FlagEn(Info *HostInfo) {
 	flag.StringVar(&CeyeDomain, "ceye-domain", "", "override ceye subdomain for reverse connection (empty = built-in default), e.g.: -ceye-domain abc.ceye.io")
 	flag.BoolVar(&SynScan, "syn", false, "SYN scan (enabled by default now; kept for compatibility, requires admin/root)")
 	flag.BoolVar(&TcpScan, "tcp", false, "force TCP connect scan (skip the SYN engine; default is SYN-first with auto fallback)")
-	flag.Int64Var(&SynRate, "synrate", 0, "SYN engine rate limit in pkt/s (0=auto 20000, negative=unlimited), SYN engine only")
+	flag.Int64Var(&SynRate, "synrate", 0, "SYN engine rate limit in pkt/s (0=auto 3000, negative=unlimited), SYN engine only")
 	flag.BoolVar(&Silent, "silent", false, "silent scan")
 	flag.BoolVar(&Nocolor, "nocolor", false, "no color")
 	flag.BoolVar(&JsonOutput, "json", false, "json output")
@@ -285,7 +285,7 @@ Web扫描:
   -wmi         135端口发现时额外尝试WMI命令执行
   -syn         SYN半连接扫描（默认已自动优先SYN，本参数保留兼容；需管理员/root权限）
   -tcp         强制TCP Connect扫描（跳过SYN引擎）
-  -synrate int SYN引擎发包速率上限（包/秒；0=自动20000，负数=不限速）
+  -synrate int SYN引擎发包速率上限（包/秒；0=自动3000，负数=不限速）
                 例: -synrate 50000
 
 性能调优:
@@ -437,7 +437,7 @@ Special:
   -wmi         Try WMI exec when port 135 is found
   -syn         SYN scan (enabled by default now; kept for compatibility, requires admin/root)
   -tcp         Force TCP connect scan (skip the SYN engine)
-  -synrate int SYN engine rate limit in pkt/s (0=auto 20000, negative=unlimited)
+  -synrate int SYN engine rate limit in pkt/s (0=auto 3000, negative=unlimited)
                 e.g.: -synrate 50000
 
 Performance:

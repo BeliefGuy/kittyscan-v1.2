@@ -335,7 +335,7 @@ Special:
   -wmi         Try WMI exec when port 135 is found
   -syn         SYN scan (enabled by default now; kept for compatibility, requires admin/root)
   -tcp         Force TCP connect scan (skip the SYN engine)
-  -synrate int SYN engine rate limit in pkt/s (0=auto 20000, negative=unlimited)
+  -synrate int SYN engine rate limit in pkt/s (0=auto 3000, negative=unlimited)
 
 Performance:
   -t  int       Threads (default: 100)
