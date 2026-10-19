@@ -24,7 +24,7 @@ On top of fscan 1.8.4, kittyscan keeps improving in four directions:
 1. Information collection:
 
 * Alive detection (ICMP / `-ping`)
-* Port scanning (`-syn` half-open scan available, requires admin/root)
+* Port scanning (SYN half-open engine is now tried first by default: Linux root, Windows admin + Npcap; auto-falls back to TCP Connect when unavailable; `-tcp` forces Connect)
 * **Service identification (v1.3)**: every open port is probed (banner / active protocol probes for SSH/FTP/Telnet/VNC/Rsync/MySQL/MSSQL/PostgreSQL/MongoDB/Redis/Memcached/Kafka/RDP/AMQP plus TLS-Web/TLS-Redis/TLS-AMQP), printing a `[port] ip:port(service)` suffix and dispatching the matching plugin; on failure it falls back to WebTitle and the port table
 * Pipeline scheduling: discovered ports immediately trigger WebTitle and service brute force in parallel
 
@@ -120,7 +120,7 @@ Default behavior differences:
 ### Other new capabilities
 
 * **Fingerprint-only modes**: `-m finger` / `-m fingeronly` (fingerprints only, no POC, no brute force)
-* **SYN half-open scanning**: `-syn` (Linux root raw sockets; Windows x64/arm64 uses a Npcap-backed async engine in masscan style with `-synrate` rate limiting and auto retransmission; missing privileges/Npcap automatically falls back to TCP connect)
+* **SYN half-open scanning (default engine)**: SYN half-open is tried first by default (Linux root raw sockets; Windows x64/arm64 uses a Npcap-backed async engine in masscan style with `-synrate` rate limiting and auto retransmission), automatically falling back to TCP connect when privileges/Npcap are missing; `-tcp` forces TCP connect, `-syn` is kept for compatibility
 * **Chinese / English help**: `-help` / `-hen`, every flag comes with examples
 * **Overridable blind-scan credentials**: `-ceye-key` / `-ceye-domain`
 * **Unified `-proxy` entry**:
@@ -205,7 +205,8 @@ kittyscan.exe -h 192.168.1.1/24 -m wmiexec -user admin -pwd password -c xxxxx (w
 kittyscan.exe -m finger -h 192.168.1.1/24 -p 80,443,8080 (fingerprints only: port scan then web fingerprints)
 kittyscan.exe -m fingeronly -h 192.168.1.1       (fingerprints only: skip port scan)
 kittyscan.exe -u http://192.168.1.1:8080 -m finger (single URL fingerprint)
-kittyscan.exe -h 192.168.1.1/24 -syn             (SYN scan, requires admin/root)
+kittyscan.exe -h 192.168.1.1/24              (SYN half-open by default, auto-falls back to Connect)
+kittyscan.exe -h 192.168.1.1/24 -tcp          (force TCP connect mode)
 kittyscan.exe -h 192.168.1.1/24 -br 8            (per-host brute threads, all brute modules)
 kittyscan.exe -h 192.168.1.0/24 -nodns           (disable DnsLog blind detection)
 ```
@@ -332,7 +333,8 @@ Special:
                 e.g.: -path /www/wwwroot/index.php
   -noredis     Skip redis unauthorized test
   -wmi         Try WMI exec when port 135 is found
-  -syn         SYN scan (requires admin/root)
+  -syn         SYN scan (enabled by default now; kept for compatibility, requires admin/root)
+  -tcp         Force TCP connect scan (skip the SYN engine)
   -synrate int SYN engine rate limit in pkt/s (0=auto 20000, negative=unlimited)
 
 Performance:

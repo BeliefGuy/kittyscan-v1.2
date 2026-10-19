@@ -25,7 +25,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 1. 信息搜集：
 
 - 存活探测（ICMP / `-ping`）
-- 端口扫描（支持 `-syn` 半连接扫描，需管理员/root）
+- 端口扫描（默认优先 SYN 半开引擎：Linux 需 root、Windows 需管理员+Npcap，不可用自动降级 TCP Connect；`-tcp` 强制 Connect）
 - **服务识别**（v1.3）：开放端口逐个做 banner/协议主动探测（SSH/FTP/Telnet/VNC/Rsync/MySQL/MSSQL/PostgreSQL/MongoDB/Redis/Memcached/Kafka/RDP/AMQP 等 + TLS-Web/TLS-Redis/TLS-AMQP），输出 `[port] ip:port(服务)` 后缀并派发对应插件；识别失败回退 Web 标题与端口表
 - 流水线调度：发现端口即并行触发 WebTitle 与服务爆破
 
@@ -121,7 +121,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 ### 其他新增能力
 
 - **纯指纹识别模式**：`-m finger` / `-m fingeronly`（只出指纹，不跑 POC、不爆破）
-- **SYN 半连接扫描**：`-syn`（Linux root 原始套接字；Windows x64/arm64 走 Npcap 异步引擎——masscan 式无状态收发，支持 `-synrate` 限速与自动重传；权限/Npcap 缺失自动降级 TCP Connect）
+- **SYN 半连接扫描（默认引擎）**：默认自动优先 SYN 半开（Linux root 原始套接字；Windows x64/arm64 走 Npcap 异步引擎——masscan 式无状态收发，支持 `-synrate` 限速与自动重传），权限/Npcap 缺失自动降级 TCP Connect；`-tcp` 强制走 TCP Connect，`-syn` 保留兼容
 - **中英文帮助**：`-help` / `-hen`，每个参数带示例
 - **反连凭据可覆盖**：`-ceye-key` / `-ceye-domain`
 - **统一代理入口 `-proxy`**：
@@ -206,7 +206,8 @@ kittyscan.exe -h 192.168.1.1/24 -m wmiexec -user admin -pwd password -c xxxxx (w
 kittyscan.exe -m finger -h 192.168.1.1/24 -p 80,443,8080 (纯指纹:先端口扫描再识别web指纹,自动跳过POC与爆破)
 kittyscan.exe -m fingeronly -h 192.168.1.1       (纯指纹:跳过端口扫描,直接按Web端口列表探测并识别指纹)
 kittyscan.exe -u http://192.168.1.1:8080 -m finger (单URL纯指纹识别)
-kittyscan.exe -h 192.168.1.1/24 -syn             (SYN半连接扫描,需管理员/root)
+kittyscan.exe -h 192.168.1.1/24              (默认优先SYN半开,不可用自动降级Connect)
+kittyscan.exe -h 192.168.1.1/24 -tcp          (强制TCP Connect模式)
 kittyscan.exe -h 192.168.1.1/24 -br 8            (单目标爆破并发,全部爆破模块生效)
 kittyscan.exe -h 192.168.1.0/24 -nodns           (禁用DnsLog反连检测)
 ```
@@ -338,7 +339,8 @@ Web扫描:
                 例: -path /www/wwwroot/index.php
   -noredis     跳过Redis未授权写入测试
   -wmi         135端口发现时额外尝试WMI命令执行
-  -syn         SYN半连接扫描（需管理员/root权限）
+  -syn         SYN半连接扫描（默认已自动优先SYN，本参数保留兼容；需管理员/root权限）
+  -tcp         强制TCP Connect扫描（跳过SYN引擎）
   -synrate int SYN引擎发包速率上限（包/秒；0=自动20000，负数=不限速）
 
 性能调优:

@@ -14,22 +14,24 @@ import (
 
 func Scan(info common.HostInfo) {
 	// 显示扫描模式
-	if common.SynScan {
-		if TrySYNScan() {
-			if !common.Silent {
-				fmt.Println("[*] Scan mode: SYN (half-open)")
-			}
-		} else {
-			// Windows: 管理员 + Npcap；Linux: root（逐端口 raw socket）。
-			// 失败原因（如 Npcap errbuf）由 synFailHint 补充打印。
-			fmt.Println("[-] SYN scan not available, fallback to TCP Connect")
-			if synFailHint != "" {
-				fmt.Println("    " + synFailHint)
-			}
+	// 端口扫描方式（2026-10-19 用户决定改为默认 SYN 优先）：
+	//   -tcp        → 强制 TCP Connect（跳过引擎探测）
+	//   默认/-syn   → 先试 SYN 引擎（Windows=Npcap需管理员；Linux=raw socket需root），
+	//                 不可用自动降级 TCP Connect 并打印原因，结果语义不变。
+	if common.TcpScan {
+		if !common.Silent {
+			fmt.Println("[*] Scan mode: TCP Connect (forced)")
+		}
+	} else if TrySYNScan() {
+		if !common.Silent {
+			fmt.Println("[*] Scan mode: SYN (half-open)")
 		}
 	} else {
-		if !common.Silent {
-			fmt.Println("[*] Scan mode: TCP Connect")
+		// Windows: 管理员 + Npcap；Linux: root（逐端口 raw socket）。
+		// 失败原因（如 Npcap errbuf）由 synFailHint 补充打印。
+		fmt.Println("[-] SYN scan not available, fallback to TCP Connect")
+		if synFailHint != "" {
+			fmt.Println("    " + synFailHint)
 		}
 	}
 
