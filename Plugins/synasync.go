@@ -8,8 +8,9 @@ package Plugins
 //   - 无状态收发：固定 asyncSenders 个 sender 协程从 sendQ 取探测，限速发 SYN；
 //     单个 dispatch 协程收包，按 (目标IP, 目标端口) 查在途表判定——masscan/zmap
 //     同款模型，不再"每端口一个 socket/一次阻塞等待"。
-//   - 超时与重传由 100ms 桶扫描器集中调度；首发后补发一次（修掉旧 -syn 实现
-//     "丢一包干等满超时"的漏报短板）。
+//   - 超时与重传由 100ms 桶扫描器集中调度；首发后在 ~0.5s/1.5s 补发两次
+//     （修掉旧 -syn 实现"丢一包干等满超时"的漏报短板；2026-10-19 公网实测
+//     随机丢包单次补发兜不住，加码为两次向内核协议栈重传节奏看齐）。
 //   - 在途探测总数有上限（asyncMaxInflight），大网段扫描内存有界。
 //   - 本地/回环目标 pcap 抓不到回包，自动回落既有 PortConnect（含 SetLinger(0)
 //     的 RST 关闭路径），与不加 -syn 时行为一致。
@@ -42,28 +43,37 @@ const (
 
 	// 调度桶粒度：超时/重传按 100ms 对齐扫描
 	asyncTickMs = 100
-	// 首发后重传一次，延迟 = clamp(超时/2, 500ms, 1000ms)
-	asyncRetryMinMs = 500
-	asyncRetryMaxMs = 1000
-	// 每个探测最多实际发包次数（首发 + 1 次重传）
-	asyncMaxAttempts = 2
+	// 两个补发点（相对首发时刻，均落在超时窗口内）：
+	//   A = clamp(超时/6, 300ms, 500ms)、B = clamp(超时/2, 800ms, 1500ms)
+	// 2026-10-19 由"补发1次"加码为"补发2次"：公网实测随机丢包下每轮漏掉
+	// 不同端口（三次扫描各漏一个），单次补发兜不住，向内核协议栈的重传节奏看齐。
+	asyncRetryAMinMs = 300
+	asyncRetryAMaxMs = 500
+	asyncRetryBMinMs = 800
+	asyncRetryBMaxMs = 1500
+	// 每个探测最多实际发包次数（首发 + 2 次重传）
+	asyncMaxAttempts = 3
 
 	// 发送队列容量（生产者背压边界之一）
 	asyncSendQCap = 8192
 	// 在途探测（已登记未判定）总数上限，防止 /16 级目标把内存打爆
 	asyncMaxInflight = 300000
-	// sender 协程数（收发无状态，该值不等于并发判定能力）
-	asyncSenders = 4
+	// sender 协程数（收发无状态，该值不等于并发判定能力；多网卡多句柄
+	// 场景下受益，单句柄发送受每句柄互斥串行制约）
+	asyncSenders = 8
 	// 响应通道缓冲
 	asyncRespQCap = 4096
 	// 邻居(ARP)解析并发上限
 	asyncArpWorkers = 16
 
-	// -synrate 未指定(0)时的自动发包速率（包/秒）；负数 = 不限速。
-	// 2026-10-19 由 20000 下调至 3000：20kpps 突发经公网链路（家用 NAT 会话表/
-	// 运营商 QoS/目标抗扫描限速）实测会丢包漏报（112.28.218.37 扫 1-10000 漏端口）；
-	// 3000 是公网安全线，局域网全端口段约 22s，追求速度可显式 -synrate 拉高。
-	asyncAutoRate = 3000
+	// -synrate 未指定(0)时的自动速率（包/秒），按路径分级：
+	//   LAN 档 = 目标全部与本机同网段（二层直达）；WAN 档 = 任一目标过网关。
+	// 2026-10-19 公网实测 112.28.218.37:1-10000 分层数据：3000pps 每轮漏1-2端口、
+	// 1000pps 2/3 全中、500pps 3/3 全中（家用 NAT 会话/速率限制 + 目标抗扫描
+	// 限速丢包），故 WAN 档取 500；LAN 档沿用已验证的 3000。
+	// 显式 -synrate 始终最高优先，负数 = 不限速。
+	asyncAutoRateLAN = 3000
+	asyncAutoRateWAN = 500
 )
 
 // 后端可返回的可恢复错误
@@ -113,6 +123,9 @@ type synBackend interface {
 	// resolveARP 异步解析 dst 的二层地址，完成回调 ok（负缓存也由后端记录）。
 	// 接收循环由后端构造时自行启动并推入 newSynBackend 传入的通道。
 	resolveARP(dst [4]byte, cb func(ok bool))
+	// OnLink 返回 dst 是否与本机同网段（下一跳即目标本身，二层直达），
+	// 查询失败按 false 处理（自动速率取保守档）。
+	OnLink(dst [4]byte) bool
 }
 
 // newSynBackend 由平台文件提供（synasync_windows.go 与 synasync_other.go
@@ -154,11 +167,12 @@ func tryStartAsyncEngine() (string, error) {
 	return "", nil
 }
 
-// asyncLogf 限流打印（每秒至多一条），避免故障场景刷屏；
-// KITTYSYN_DEBUG=1 时不限流全量输出。
+// asyncLogf 限流打印（每秒至多一条），避免故障场景刷屏；带毫秒时间戳便于
+// 与追踪行对时间线；KITTYSYN_DEBUG=1 时不限流全量输出。
 func asyncLogf(format string, args ...interface{}) {
+	ts := time.Now().Format("15:04:05.000")
 	if synDebug {
-		fmt.Printf("[d] synasync: "+format+"\n", args...)
+		fmt.Printf("[d %s] synasync: "+format+"\n", append([]interface{}{ts}, args...)...)
 		return
 	}
 	now := time.Now().Unix()
@@ -166,17 +180,18 @@ func asyncLogf(format string, args ...interface{}) {
 	if now <= last || !atomic.CompareAndSwapInt64(&asyncLogAt, last, now) {
 		return
 	}
-	fmt.Printf("[-] synasync: "+format+"\n", args...)
+	fmt.Printf("[- %s] synasync: "+format+"\n", append([]interface{}{ts}, args...)...)
 }
 
-// traceLogf 仅 KITTYSYN_DEBUG=1 时输出的追踪日志：正式模式下引擎保持静默
-// （开放端口只出 [port] 等正式标签行，不刷内部判定碎片），诊断细节留给
-// 调试开关。告警类（发送失败/邻居解析失败等）仍走 asyncLogf 常驻输出。
+// traceLogf 仅 KITTYSYN_DEBUG=1 时输出的追踪日志（带毫秒时间戳）：正式模式
+// 下引擎保持静默（开放端口只出 [port] 等正式标签行，不刷内部判定碎片），
+// 诊断细节留给调试开关。告警类（发送失败/邻居解析失败等）仍走 asyncLogf 常驻输出。
 func traceLogf(format string, args ...interface{}) {
 	if !synDebug {
 		return
 	}
-	fmt.Printf("[d] synasync: "+format+"\n", args...)
+	ts := time.Now().Format("15:04:05.000")
+	fmt.Printf("[d %s] synasync: "+format+"\n", append([]interface{}{ts}, args...)...)
 }
 
 func be32(b []byte) uint32 { return binary.BigEndian.Uint32(b) }
@@ -226,9 +241,10 @@ func newAsyncEngine() *asyncEngine {
 
 func slotOf(ms int64) int64 { return ms / asyncTickMs }
 
-// start 注入本次扫描的结果通道与 WaitGroup，启动全部引擎协程。
+// start 注入本次扫描的结果通道、WaitGroup 与自动速率档位，启动全部引擎协程。
 // 字段写入发生在协程创建之前，后续经通道同步，无数据竞争。
-func (e *asyncEngine) start(results chan string, wg *sync.WaitGroup, timeoutMs int64) {
+// autoRate 仅在用户未显式指定 -synrate 时生效（显式值/负数不限速最高优先）。
+func (e *asyncEngine) start(results chan string, wg *sync.WaitGroup, timeoutMs int64, autoRate int64) {
 	e.results = results
 	e.wg = wg
 	e.timeoutMs = timeoutMs
@@ -236,7 +252,7 @@ func (e *asyncEngine) start(results chan string, wg *sync.WaitGroup, timeoutMs i
 
 	rate := common.SynRate
 	if rate == 0 {
-		rate = asyncAutoRate
+		rate = autoRate
 	}
 	e.rate = rate
 	if rate > 0 {
@@ -262,21 +278,22 @@ func capTokens(rate int64) int {
 	return c
 }
 
-// tokenLoop 每 5ms 补充 rate/200 个发包令牌，实现 -synrate 限速。
-// 缓冲满时跳过本轮补充（发送侧已饱和），循环继续。
+// tokenLoop 每 1ms 按 rate 补充发包令牌（余数进位，低速率无量化偏差：
+// 旧实现 rate/200 每 5ms 一轮，500pps 实际只出 400）。缓冲满时跳过本轮
+// 补充（发送侧已达限速上界），循环继续。
 func (e *asyncEngine) tokenLoop(rate int64) {
-	per := rate / 200
-	if per < 1 {
-		per = 1
-	}
-	t := time.NewTicker(5 * time.Millisecond)
+	t := time.NewTicker(time.Millisecond)
 	defer t.Stop()
+	var carry int64
 	for range t.C {
-		for i := int64(0); i < per; i++ {
+		carry += rate // 每毫秒产出 rate/1000 个令牌，余数累加进位
+		n := carry / 1000
+		carry %= 1000
+		for i := int64(0); i < n; i++ {
 			select {
 			case e.tokens <- struct{}{}:
 			default:
-				i = per // 缓冲满：已达限速上界，跳过本轮剩余补充
+				i = n // 缓冲满：跳过本轮剩余补充
 			}
 		}
 	}
@@ -396,16 +413,25 @@ func (e *asyncEngine) park(p *asyncProbe) {
 	})
 }
 
-// retryDelayMs 重传延迟：clamp(超时/2, 500ms, 1000ms)。
-func (e *asyncEngine) retryDelayMs() int64 {
-	d := e.timeoutMs / 2
-	if d < asyncRetryMinMs {
-		d = asyncRetryMinMs
+// retryDelaysMs 两个补发点（相对首发时刻）：A=clamp(t/6,300,500)ms、
+// B=clamp(t/2,800,1500)ms。极小超时下 B 可能贴近/越过 deadline，
+// retryLoop 的 isDone 判定会自然跳过，无害。
+func (e *asyncEngine) retryDelaysMs() (int64, int64) {
+	a := e.timeoutMs / 6
+	if a < asyncRetryAMinMs {
+		a = asyncRetryAMinMs
 	}
-	if d > asyncRetryMaxMs {
-		d = asyncRetryMaxMs
+	if a > asyncRetryAMaxMs {
+		a = asyncRetryAMaxMs
 	}
-	return d
+	b := e.timeoutMs / 2
+	if b < asyncRetryBMinMs {
+		b = asyncRetryBMinMs
+	}
+	if b > asyncRetryBMaxMs {
+		b = asyncRetryBMaxMs
+	}
+	return a, b
 }
 
 // sendLoop 固定数量发送协程：取探测 → 邻居预检 → 路由选源 → 构造 → 限速 → 发送。
@@ -459,9 +485,11 @@ func (e *asyncEngine) sendLoop() {
 		e.mu.Unlock()
 		if n == 1 {
 			e.startClock(p) // 首次真正发出：超时时钟从这里开始
+			da, db := e.retryDelaysMs()
+			base := time.Now().UnixMilli()
 			e.mu.Lock()
-			slot := slotOf(time.Now().UnixMilli() + e.retryDelayMs())
-			e.retB[slot] = append(e.retB[slot], p)
+			e.retB[slotOf(base+da)] = append(e.retB[slotOf(base+da)], p)
+			e.retB[slotOf(base+db)] = append(e.retB[slotOf(base+db)], p)
 			e.mu.Unlock()
 		}
 		if tot := atomic.AddInt64(&synSendOk, 1); tot <= 8 || tot%500 == 0 {
@@ -701,7 +729,22 @@ func portScanAsync(hostslist []string, probePorts []int, timeout int64, onFound 
 		}
 	}()
 
-	e.start(results, &wg, timeout*1000)
+	// 自动速率按路径分级：任一目标过网关（公网）→ WAN 档500；全部同网段
+	// → LAN 档3000。显式 -synrate 在 start 内最高优先。
+	autoRate := int64(asyncAutoRateLAN)
+	for _, h := range hostslist {
+		ip4 := net.ParseIP(h).To4()
+		if ip4 == nil {
+			continue
+		}
+		var dst [4]byte
+		copy(dst[:], ip4)
+		if !e.backend.OnLink(dst) {
+			autoRate = asyncAutoRateWAN
+			break
+		}
+	}
+	e.start(results, &wg, timeout*1000, autoRate)
 
 	localAddrs := localAddrSet()
 	localSem := make(chan struct{}, common.Threads)

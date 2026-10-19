@@ -629,6 +629,20 @@ func (b *npcapBackend) resolveARP(dst [4]byte, cb func(bool)) {
 	}()
 }
 
+// OnLink 判断目标是否与本机同网段：GetBestRoute 的下一跳 == 目标本身
+// （routeFor 已把 on-link 的 0.0.0.0 替换为目标），查询失败保守返回 false。
+func (b *npcapBackend) OnLink(dst [4]byte) bool {
+	src, err := b.sourceIP(dst)
+	if err != nil {
+		return false
+	}
+	nh, err := b.routeFor(dst, src)
+	if err != nil {
+		return false
+	}
+	return nh == dst
+}
+
 // macFor 按源 IP 从 net.Interfaces 取本机网卡 MAC（含缓存）。
 func (b *npcapBackend) macFor(srcIP [4]byte) ([6]byte, error) {
 	key := be32(srcIP[:])

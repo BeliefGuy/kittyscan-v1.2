@@ -215,7 +215,7 @@ var (
 	Noredistest   bool
 	SynScan       bool
 	TcpScan       bool  // 强制TCP Connect（跳过SYN引擎）；默认false=SYN优先+不可用自动降级
-	SynRate       int64 // SYN引擎发包速率上限(包/秒): 0=自动(3000), 负数=不限速, 仅SYN引擎生效
+	SynRate       int64 // SYN引擎发包速率上限(包/秒): 0=自动(同网段3000/过网关500), 负数=不限速, 仅SYN引擎生效
 	TLSMinVer     int   // TLS最低版本: 0=自动, 10=TLS1.0, 11=TLS1.1, 12=TLS1.2, 13=TLS1.3
 	MaxConns      int   // 每主机最大连接数
 	ScanDelay     bool  // 是否启用扫描延迟（默认开启，用-nodelay禁用）
