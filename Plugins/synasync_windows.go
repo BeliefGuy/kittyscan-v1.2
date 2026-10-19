@@ -288,7 +288,7 @@ func newSynBackend(out chan<- synDatagram) (synBackend, error) {
 	if err != nil {
 		return nil, err // 非管理员时 Npcap 驱动拒绝打开，errbuf 说明原因
 	}
-	asyncLogf("npcap ready: %d devices, probe=%s dl=%d", len(devs), probeDev.name, h.dl)
+	traceLogf("npcap ready: %d devices, probe=%s dl=%d", len(devs), probeDev.name, h.dl)
 	return b, nil
 }
 
@@ -606,7 +606,7 @@ func (b *npcapBackend) resolveARP(dst [4]byte, cb func(bool)) {
 			b.mu.Lock()
 			b.neigh[be32(nh[:])] = neighEntry{mac: mac, alive: true, expire: nowMs() + asyncMacTTLMs}
 			b.mu.Unlock()
-			asyncLogf("resolveARP %v via %v -> mac %v (os arp table)", dst, nh, mac)
+			traceLogf("resolveARP %v via %v -> mac %v (os arp table)", dst, nh, mac)
 			ok = true
 			return
 		}
@@ -615,7 +615,7 @@ func (b *npcapBackend) resolveARP(dst [4]byte, cb func(bool)) {
 		if err != nil {
 			asyncLogf("resolveARP SendARP(%v via %v): %v", dst, nh, err)
 		} else {
-			asyncLogf("resolveARP %v via %v -> mac %v (SendARP)", dst, nh, mac)
+			traceLogf("resolveARP %v via %v -> mac %v (SendARP)", dst, nh, mac)
 		}
 		nhKey := be32(nh[:])
 		b.mu.Lock()
@@ -847,7 +847,7 @@ func (b *npcapBackend) handlePacket(h *pcapHandle, hdrPtr, dataPtr uintptr) {
 			}
 			return // 本包丢弃，从下个包按定型偏移处理
 		}
-		asyncLogf("calibrated dev=%s capOff=%d dl=%d", h.dev, h.capOff, h.dl)
+		traceLogf("calibrated dev=%s capOff=%d dl=%d", h.dev, h.capOff, h.dl)
 	}
 
 	caplen := readCaplen(hdrPtr, h.capOff)
@@ -869,8 +869,8 @@ func (b *npcapBackend) handlePacket(h *pcapHandle, hdrPtr, dataPtr uintptr) {
 	}
 	pkt := make([]byte, total)
 	copy(pkt, ip[:total])
-	if n := atomic.AddInt64(&synRecvTcp, 1); n <= 8 || (synDebug && n%500 == 0) {
-		asyncLogf("recv tcp %dB dl=%d (total=%d)", total, h.dl, n)
+	if n := atomic.AddInt64(&synRecvTcp, 1); n <= 8 || n%500 == 0 {
+		traceLogf("recv tcp %dB dl=%d (total=%d)", total, h.dl, n)
 	}
 	b.out <- synDatagram{ip: pkt} // 阻塞式背压：核心积压时由驱动缓冲兜底
 }

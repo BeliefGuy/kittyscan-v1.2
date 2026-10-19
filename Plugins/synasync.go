@@ -166,6 +166,16 @@ func asyncLogf(format string, args ...interface{}) {
 	fmt.Printf("[-] synasync: "+format+"\n", args...)
 }
 
+// traceLogf 仅 KITTYSYN_DEBUG=1 时输出的追踪日志：正式模式下引擎保持静默
+// （开放端口只出 [port] 等正式标签行，不刷内部判定碎片），诊断细节留给
+// 调试开关。告警类（发送失败/邻居解析失败等）仍走 asyncLogf 常驻输出。
+func traceLogf(format string, args ...interface{}) {
+	if !synDebug {
+		return
+	}
+	fmt.Printf("[d] synasync: "+format+"\n", args...)
+}
+
 func be32(b []byte) uint32 { return binary.BigEndian.Uint32(b) }
 
 // srcPortFor 与 Linux 既有实现同款的源端口派生（30000~39999）。
@@ -328,7 +338,7 @@ func (e *asyncEngine) resolve(p *asyncProbe, open bool) {
 	<-e.slots // 释放生产者放入的在途槽位
 
 	if open {
-		asyncLogf("OPEN %s", p.addr)
+		traceLogf("OPEN %s", p.addr)
 	}
 	if open && e.wg != nil && e.results != nil {
 		e.wg.Add(1)
@@ -355,7 +365,7 @@ func (e *asyncEngine) park(p *asyncProbe) {
 	if !needResolve {
 		return
 	}
-	asyncLogf("park %s: resolving neighbor/ARP", p.addr)
+	traceLogf("park %s: resolving neighbor/ARP", p.addr)
 	go e.backend.resolveARP(dst, func(ok bool) {
 		e.mu.Lock()
 		delete(e.resolving, dip)
@@ -366,7 +376,7 @@ func (e *asyncEngine) park(p *asyncProbe) {
 			asyncLogf("neighbor resolve FAILED for %s (parked=%d), probes wait for timeout", p.addr, len(flush))
 			return // 解析失败：探测留在 inflight/expB，按超时收尾
 		}
-		asyncLogf("neighbor resolved for %s, flushing %d parked probes", p.addr, len(flush))
+		traceLogf("neighbor resolved for %s, flushing %d parked probes", p.addr, len(flush))
 		// 单独协程冲回队列，避免阻塞后端解析池
 		go func(list []*asyncProbe) {
 			for _, q := range list {
@@ -451,8 +461,8 @@ func (e *asyncEngine) sendLoop() {
 			e.retB[slot] = append(e.retB[slot], p)
 			e.mu.Unlock()
 		}
-		if tot := atomic.AddInt64(&synSendOk, 1); tot <= 8 || (synDebug && tot%500 == 0) {
-			asyncLogf("sent %s sport=%d (total=%d)", p.addr, p.srcPort, tot)
+		if tot := atomic.AddInt64(&synSendOk, 1); tot <= 8 || tot%500 == 0 {
+			traceLogf("sent %s sport=%d (total=%d)", p.addr, p.srcPort, tot)
 		}
 	}
 }
