@@ -120,7 +120,7 @@ Default behavior differences:
 ### Other new capabilities
 
 * **Fingerprint-only modes**: `-m finger` / `-m fingeronly` (fingerprints only, no POC, no brute force)
-* **SYN half-open scanning**: `-syn` (raw sockets on Linux root, otherwise automatically falls back to TCP connect)
+* **SYN half-open scanning**: `-syn` (Linux root raw sockets; Windows x64/arm64 uses a Npcap-backed async engine in masscan style with `-synrate` rate limiting and auto retransmission; missing privileges/Npcap automatically falls back to TCP connect)
 * **Chinese / English help**: `-help` / `-hen`, every flag comes with examples
 * **Overridable blind-scan credentials**: `-ceye-key` / `-ceye-domain`
 * **Unified `-proxy` entry**:
@@ -333,6 +333,7 @@ Special:
   -noredis     Skip redis unauthorized test
   -wmi         Try WMI exec when port 135 is found
   -syn         SYN scan (requires admin/root)
+  -synrate int SYN engine rate limit in pkt/s (0=auto 20000, negative=unlimited)
 
 Performance:
   -t  int       Threads (default: 100)

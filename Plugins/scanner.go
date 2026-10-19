@@ -17,11 +17,15 @@ func Scan(info common.HostInfo) {
 	if common.SynScan {
 		if TrySYNScan() {
 			if !common.Silent {
-				fmt.Println("[*] Scan mode: SYN (raw socket)")
+				fmt.Println("[*] Scan mode: SYN (half-open)")
 			}
 		} else {
-			fmt.Println("[-] SYN scan not available on this platform, fallback to TCP Connect")
-			fmt.Println("    (SYN scan only supported on Linux with root privileges)")
+			// Windows: 管理员 + Npcap；Linux: root（逐端口 raw socket）。
+			// 失败原因（如 Npcap errbuf）由 synFailHint 补充打印。
+			fmt.Println("[-] SYN scan not available, fallback to TCP Connect")
+			if synFailHint != "" {
+				fmt.Println("    " + synFailHint)
+			}
 		}
 	} else {
 		if !common.Silent {

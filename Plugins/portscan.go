@@ -41,6 +41,14 @@ func PortScan(hostslist []string, ports string, timeout int64, onFound func(addr
 		probePorts = newDatas
 		sort.Ints(probePorts)
 	}
+	// 异步 SYN 引擎分支（2026-10-19）：仅当 -syn 且平台后端初始化成功时
+	// EngineActive() 为真（Windows=Npcap；其余平台恒假）。masscan 风格
+	// 无状态收发，契约与下方旧实现一致；本地/回环目标在分支内部自动回落
+	// 既有 PortConnect，结果与旧路径完全一致。
+	if EngineActive() {
+		return portScanAsync(hostslist, probePorts, timeout, onFound)
+	}
+
 	workers := common.Threads
 	Addrs := make(chan Addr, workers)
 	results := make(chan string, workers)

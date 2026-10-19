@@ -121,7 +121,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 ### 其他新增能力
 
 - **纯指纹识别模式**：`-m finger` / `-m fingeronly`（只出指纹，不跑 POC、不爆破）
-- **SYN 半连接扫描**：`-syn`（Linux root 原始套接字，其余环境自动降级 TCP Connect）
+- **SYN 半连接扫描**：`-syn`（Linux root 原始套接字；Windows x64/arm64 走 Npcap 异步引擎——masscan 式无状态收发，支持 `-synrate` 限速与自动重传；权限/Npcap 缺失自动降级 TCP Connect）
 - **中英文帮助**：`-help` / `-hen`，每个参数带示例
 - **反连凭据可覆盖**：`-ceye-key` / `-ceye-domain`
 - **统一代理入口 `-proxy`**：
@@ -339,6 +339,7 @@ Web扫描:
   -noredis     跳过Redis未授权写入测试
   -wmi         135端口发现时额外尝试WMI命令执行
   -syn         SYN半连接扫描（需管理员/root权限）
+  -synrate int SYN引擎发包速率上限（包/秒；0=自动20000，负数=不限速）
 
 性能调优:
   -t  int       并发线程数（默认100）

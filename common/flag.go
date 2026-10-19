@@ -63,6 +63,7 @@ func Flag(Info *HostInfo) {
 	flag.StringVar(&ApiKey, "ceye-key", "", "覆盖ceye反连API Key（留空则使用内置默认值），例如: -ceye-key 0123456789abcdef0123456789abcdef")
 	flag.StringVar(&CeyeDomain, "ceye-domain", "", "覆盖ceye二级域名（留空则使用内置默认值），例如: -ceye-domain abc.ceye.io")
 	flag.BoolVar(&SynScan, "syn", false, "使用SYN半连接扫描（需管理员/root权限）")
+	flag.Int64Var(&SynRate, "synrate", 0, "SYN引擎发包速率上限(包/秒)，0=自动20000，负数=不限速，需配合 -syn")
 	flag.BoolVar(&Silent, "silent", false, "静默模式（不输出扫描过程）")
 	flag.BoolVar(&Nocolor, "nocolor", false, "禁用彩色输出")
 	flag.BoolVar(&JsonOutput, "json", false, "JSON格式输出结果")
@@ -137,6 +138,7 @@ func FlagEn(Info *HostInfo) {
 	flag.StringVar(&ApiKey, "ceye-key", "", "override ceye API key for reverse connection (empty = built-in default), e.g.: -ceye-key 0123456789abcdef0123456789abcdef")
 	flag.StringVar(&CeyeDomain, "ceye-domain", "", "override ceye subdomain for reverse connection (empty = built-in default), e.g.: -ceye-domain abc.ceye.io")
 	flag.BoolVar(&SynScan, "syn", false, "SYN scan (requires admin/root)")
+	flag.Int64Var(&SynRate, "synrate", 0, "SYN engine rate limit in pkt/s (0=auto 20000, negative=unlimited), requires -syn")
 	flag.BoolVar(&Silent, "silent", false, "silent scan")
 	flag.BoolVar(&Nocolor, "nocolor", false, "no color")
 	flag.BoolVar(&JsonOutput, "json", false, "json output")
@@ -280,6 +282,8 @@ Web扫描:
   -noredis     跳过Redis未授权写入测试
   -wmi         135端口发现时额外尝试WMI命令执行
   -syn         SYN半连接扫描（需管理员/root权限）
+  -synrate int SYN引擎发包速率上限（包/秒；0=自动20000，负数=不限速）
+                例: -synrate 50000
 
 性能调优:
   -t  int       并发线程数（默认100）
@@ -429,6 +433,8 @@ Special:
   -noredis     Skip redis unauthorized test
   -wmi         Try WMI exec when port 135 is found
   -syn         SYN scan (requires admin/root)
+  -synrate int SYN engine rate limit in pkt/s (0=auto 20000, negative=unlimited)
+                e.g.: -synrate 50000
 
 Performance:
   -t  int       Threads (default: 100)
