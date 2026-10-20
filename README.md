@@ -1,4 +1,4 @@
-# kittyscan v1.3
+# kittyscan v1.4
 
 [English][url-docen]
 
@@ -13,19 +13,20 @@
 一款内网综合扫描工具，方便一键自动化、全方位漏扫扫描。
 支持主机存活探测、端口扫描、常见服务的爆破、MS17-010、Redis 批量写公钥、计划任务反弹 shell、读取 Win 网卡信息、Web 指纹识别、Web 漏洞扫描、NetBIOS 探测、域控识别等功能。
 
-kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
+kittyscan 在 fscan 1.8.4 的基础上，沿五个方向持续改进：
 
 - **覆盖更广**：服务插件 24 → 41，POC 386 → 688，默认端口 21 → 143，密码字典、爆破服务同步扩充；v1.3 起 Web 指纹规则 206 → 7,611 条（含品牌家族合并组与长尾小众产品，仅识别不收敛）；
 - **判定更准**：按 nuclei 模板收紧指纹规则与 POC 误报（复活 3 条失效规则、剔除只判 `status=200` 的高误报 POC），POC 引擎的响应头键、GBK 编码、超时等判定细节逐项修正；
 - **跑得更稳**：数据库爆破无超时挂死、RDP 爆破死锁、727 个并发 DATA RACE、Redis RESP 解析错位等稳定性问题全部修复，并通过 `-race`、真实环境、靶机三类验证；
 - **识别驱动（v1.3 核心）**：新增服务识别层 —— 端口开放后先做 banner/协议/TLS 探测，输出 `[port] ip:port(服务)` 并**精准派发**对应爆破/未授权插件，识别失败回退 WebTitle + 端口表双轨兜底；公网 Quake 14 服务非标端口实测，活特征口径识别率 90%~100%。
+- **扫得更快更隐蔽（v1.4 核心）**：Windows masscan 式异步 SYN 半开引擎（纯 Go P/Invoke 直调 Npcap，**CGO=0 与六平台编译不变**），默认 SYN 优先、权限/Npcap 缺失自动降级 Connect（`-tcp` 强制回 Connect）；自动速率按路径分级（同网段 3000 / 过网关 500pps，`-synrate` 可覆盖）+ 每探测补发 2 次防公网丢包；同网关 1-2000 实测 SYN ~5.6s vs connect ~55.9s（约 10 倍），公网 1-10000 裸跑三连 3/3 全中（见 3.2/3.4）。
 
 # 2. 主要功能
 
 1. 信息搜集：
 
 - 存活探测（ICMP / `-ping`）
-- 端口扫描（默认优先 SYN 半开引擎：Linux 需 root、Windows 需管理员+Npcap，不可用自动降级 TCP Connect；`-tcp` 强制 Connect）
+- 端口扫描（**默认优先 SYN 半开引擎（v1.4）**：Linux 需 root、Windows 需管理员+Npcap，不可用自动降级 TCP Connect；`-tcp` 强制 Connect）
 - **服务识别**（v1.3）：开放端口逐个做 banner/协议主动探测（SSH/FTP/Telnet/VNC/Rsync/MySQL/MSSQL/PostgreSQL/MongoDB/Redis/Memcached/Kafka/RDP/AMQP 等 + TLS-Web/TLS-Redis/TLS-AMQP），输出 `[port] ip:port(服务)` 后缀并派发对应插件；识别失败回退 Web 标题与端口表
 - 流水线调度：发现端口即并行触发 WebTitle 与服务爆破
 
@@ -65,7 +66,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 
 ## 3.1 规模对比
 
-| 项目 | fscan 1.8.4 | kittyscan v1.3 |
+| 项目 | fscan 1.8.4 | kittyscan v1.4 |
 | --- | --- | --- |
 | 服务插件（`Plugins/*.go`） | 24 | **41** |
 | POC（`WebScan/pocs/*.yml`） | 386 | **688** |
@@ -75,7 +76,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 
 默认行为差异：
 
-| 项目 | fscan 1.8.4 | kittyscan v1.3 |
+| 项目 | fscan 1.8.4 | kittyscan v1.4 |
 | --- | --- | --- |
 | 默认线程数 `-t` | 600 | 100（更隐蔽） |
 | 默认输出文件 `-o` | `result.txt` | `output.txt` |
@@ -85,6 +86,17 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 | 帮助 | 无 | `-help` 中文帮助 / `-hen` 英文帮助（均带样例） |
 
 ## 3.2 新增功能
+
+### SYN 半开扫描引擎（v1.4 核心）
+
+> 原版 fscan 只有 TCP Connect。v1.4 为 Windows 引入 **masscan 式异步无状态 SYN 引擎**（`Plugins/synasync.go` + `Plugins/synasync_windows.go`，纯 Go P/Invoke 直调 Npcap/wpcap，**不引入 cgo、CGO=0 与六平台交叉编译链路不变**；原版与 v1.3 均无这两个文件）：
+
+- **默认 SYN 优先 + 自动降级**：无参数即先试半开引擎，无 root/管理员/Npcap 时打印具体原因并回退 TCP Connect（结果语义不变）；`-tcp` 强制 Connect，`-syn` 保留兼容
+- **无状态异步收发（masscan/zmap 同款模型）**：发送队列 + 集中收包判定 + 100ms 超时/重传桶 + 令牌限速 + 在途探测上限 30 万；每探测首发 + **2 次补发**（约 0.5s/1.5s，均在 `-time` 窗口内），向内核协议栈重传节奏看齐
+- **自动速率按路径分级**：目标全部同网段 3000pps、任一过网关 500pps——公网家用 NAT 会话/运营商 QoS/目标抗扫描限速会丢包（实测 3000pps 每轮漏 1-2 端口、1000pps 2/3、500pps 3/3 全中）；`-synrate` 显式指定最高优先，负数不限速
+- **完整二层实现**：GetBestRoute 选路 → 系统 ARP 表（GetIpNetTable，3 秒快照）优先 → SendARP 兜底（正缓存 5 分钟/负缓存 5 秒）→ `net.Interfaces` 取源 MAC；本地/回环目标自动回落 connect
+- **低痕迹**：判定开放立即发 RST 关闭对端半开连接（seq 取 SYN-ACK 的 ack，RFC793 可接受序列），对端不留 ESTABLISHED；`KITTYSYN_DEBUG=1` 输出毫秒级时间戳诊断，正式模式引擎零输出
+- **Linux 不受影响**：`-syn` 沿用既有逐端口 raw socket 实现（`synscan_linux.go` 未改动）
 
 ### 服务识别驱动派发（v1.3 核心）
 
@@ -121,7 +133,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 ### 其他新增能力
 
 - **纯指纹识别模式**：`-m finger` / `-m fingeronly`（只出指纹，不跑 POC、不爆破）
-- **SYN 半连接扫描（默认引擎）**：默认自动优先 SYN 半开（Linux root 原始套接字；Windows x64/arm64 走 Npcap 异步引擎——masscan 式无状态收发，支持 `-synrate` 限速与自动重传），权限/Npcap 缺失自动降级 TCP Connect；`-tcp` 强制走 TCP Connect，`-syn` 保留兼容
+- **SYN 半连接扫描（默认引擎，v1.4）**：默认自动优先 SYN 半开（Linux root 原始套接字；Windows x64/arm64 走 Npcap 异步引擎——masscan 式无状态收发，支持 `-synrate` 限速与自动重传），权限/Npcap 缺失自动降级 TCP Connect；`-tcp` 强制走 TCP Connect，`-syn` 保留兼容
 - **中英文帮助**：`-help` / `-hen`，每个参数带示例
 - **反连凭据可覆盖**：`-ceye-key` / `-ceye-domain`
 - **统一代理入口 `-proxy`**：
@@ -165,6 +177,7 @@ kittyscan 在 fscan 1.8.4 的基础上，沿四个方向持续改进：
 - **v1.3 识别链**：Quake 14 服务 × 各 60 资产非标端口实测（**全部避开兜底端口**，`service:"x" and port:"相近非标"` 口径）——活特征口径识别率 90%~100%，低分组经逐目标抽样甄别为死资产/半开静默（无响应特征识别不出属正确行为）；关键指标：redis 6380 识别率 18% → **100%**（TLS-Redis 探针）、rdp 13389 **0% → 80%**（stage2 并发）、mysql 77% → 97%、telnet 漏样本 2/2 修复、TLS-AMQP 真目标命中
 - **v1.3 本地假靶场**：残截 MySQL / MySQL-ERR / VNC 竞态 / TLS-Redis / fake RDP / TLS-AMQP 六类识别烟雾；TIME_WAIT 对照（正常 FIN 关闭 3 个 vs 扫描器 5 次 0 新增）；多指纹并集去重矩阵（5 场景 + 覆盖断言 `gateway.php` 仅 1 次）
 - **v1.3 靶机**：Win7 真实 SMB1（方言路由链路 + 额外命中 MS17-010）、Win11 真实 RDP（NLA 下 ErrJudge 认证拒绝清零计数 5/5 跑完）
+- **v1.4 SYN 引擎**：六平台（win/linux × amd64/386/arm64）`CGO=0` 编译 + `go vet` 全净；同目标双路径对拍（网关 + 公网 223.5.5.5，开放/关闭/被过滤/路由全场景）SYN 与 connect 结果 6/6 完全一致、零漏报零误报；同网关 1-2000 端口段 SYN ~5.6s vs connect ~55.9s（约 10 倍）；公网 112.28.218.37:1-10000 自动档三连 **3/3 全中**（554/4367/8000），速率分层矩阵 3000pps 每轮漏 1-2 → 1000pps 2/3 → 500pps 3/3；局域网 1000 端口 3.06s
 
 ## 3.5 已知限制
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Kittyscan 1.0 (based on fscan 1.8.4) Multi-Platform Builder
+Kittyscan 1.4 (based on fscan 1.8.4) Multi-Platform Builder
 modified by laxy
 编译完成后可选 UPX 压缩，减小二进制体积 80%+
 支持 garble 混淆编译，绕过杀毒软件检测
@@ -133,7 +133,7 @@ def show_menu():
     """显示构建菜单"""
     print()
     print("  ============================================")
-    print("         Kittyscan 1.0 Multi-Platform Builder")
+    print("         Kittyscan 1.4 Multi-Platform Builder")
     print("                 modified by laxy")
     print("  ============================================")
     print()

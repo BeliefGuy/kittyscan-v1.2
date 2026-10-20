@@ -1,4 +1,4 @@
-# kittyscan v1.3
+# kittyscan v1.4
 [中文][url-doczh]
 
 > **This project is a fork of [fscan](https://github.com/shadow1ng/fscan) 1.8.4** (MIT License · Copyright (c) 2021 shadow1ng).
@@ -12,19 +12,20 @@
 An intranet comprehensive scanning tool, convenient for one-click automatic and omnidirectional scanning.
 It supports host alive detection, port scanning, brute forcing of common services, MS17-010, Redis batch public key writing, scheduled-task reverse shell, reading Windows NIC information, web fingerprinting, web vulnerability scanning, NetBIOS detection and domain controller identification.
 
-On top of fscan 1.8.4, kittyscan keeps improving in four directions:
+On top of fscan 1.8.4, kittyscan keeps improving in five directions:
 
 - **Wider coverage**: 24 → 41 service plugins, 386 → 688 POCs, 21 → 143 default ports, expanded dictionaries and brute-force services; from v1.3 the web fingerprint rules grow 206 → 7,611 (brand-family merged groups plus long-tail products; identification only, no POC convergence mapping);
 - **More accurate detection**: fingerprint rules and POC false positives tightened against nuclei templates (3 dead rules revived, high-FP POCs removed); detection details fixed across the board (response-header key case, GBK encoding, timeouts);
 - **More stable**: fixed database brute-force hangs (no IO timeout), RDP brute-force deadlock, 727 concurrency DATA RACEs and Redis RESP parsing corruption — verified with `-race`, real-world environments and a target machine.
 - **Identify-driven dispatch (core of v1.3)**: a new service-identification layer probes every open port (banner / protocol / TLS), prints a `[port] ip:port(service)` suffix and **dispatches the matching brute-force / unauthorized-access plugin**; on failure it falls back to WebTitle + port-table dual-track defaults. Measured against 14 services on Quake at non-standard ports: 90%~100% identification on live, feature-bearing targets.
+- **Faster, stealthier scans (core of v1.4)**: a masscan-style asynchronous SYN half-open engine for Windows (pure Go P/Invoke straight against Npcap, **CGO=0 and the six-platform build unchanged**), SYN-first by default with automatic fallback to connect when privileges/Npcap are missing (`-tcp` forces connect); path-tiered auto rate (3000pps on-link / 500pps via gateway, overridable with `-synrate`) plus 2 retransmissions per probe against public-internet loss; measured on the same gateway: SYN ~5.6s vs connect ~55.9s over ports 1-2000 (~10x), and 3/3 clean runs on a public 1-10000 range (see 3.2 / 3.4).
 
 # 2. Functions
 
 1. Information collection:
 
 * Alive detection (ICMP / `-ping`)
-* Port scanning (SYN half-open engine is now tried first by default: Linux root, Windows admin + Npcap; auto-falls back to TCP Connect when unavailable; `-tcp` forces Connect)
+* Port scanning (**SYN half-open engine first by default, v1.4**: Linux root, Windows admin + Npcap; auto-falls back to TCP Connect when unavailable; `-tcp` forces Connect)
 * **Service identification (v1.3)**: every open port is probed (banner / active protocol probes for SSH/FTP/Telnet/VNC/Rsync/MySQL/MSSQL/PostgreSQL/MongoDB/Redis/Memcached/Kafka/RDP/AMQP plus TLS-Web/TLS-Redis/TLS-AMQP), printing a `[port] ip:port(service)` suffix and dispatching the matching plugin; on failure it falls back to WebTitle and the port table
 * Pipeline scheduling: discovered ports immediately trigger WebTitle and service brute force in parallel
 
@@ -64,7 +65,7 @@ On top of fscan 1.8.4, kittyscan keeps improving in four directions:
 
 ## 3.1 Scale comparison
 
-| Item | fscan 1.8.4 | kittyscan v1.3 |
+| Item | fscan 1.8.4 | kittyscan v1.4 |
 |---|---|---|
 | Service plugins (`Plugins/*.go`) | 24 | **41** |
 | POCs (`WebScan/pocs/*.yml`) | 386 | **688** |
@@ -74,7 +75,7 @@ On top of fscan 1.8.4, kittyscan keeps improving in four directions:
 
 Default behavior differences:
 
-| Item | fscan 1.8.4 | kittyscan v1.3 |
+| Item | fscan 1.8.4 | kittyscan v1.4 |
 |---|---|---|
 | Default threads `-t` | 600 | 100 (stealthier) |
 | Default output file `-o` | `result.txt` | `output.txt` |
@@ -84,6 +85,17 @@ Default behavior differences:
 | Help | none | `-help` (Chinese) / `-hen` (English), both with examples |
 
 ## 3.2 New features
+
+### SYN half-open scanning engine (v1.4 core)
+
+> Upstream fscan only has TCP connect. v1.4 adds a **masscan-style asynchronous stateless SYN engine for Windows** (`Plugins/synasync.go` + `Plugins/synasync_windows.go`, pure Go P/Invoke straight against Npcap/wpcap — **no cgo; CGO=0 and the six-platform cross-build pipeline unchanged**; neither upstream nor v1.3 contains these files):
+
+- **SYN-first by default with automatic fallback**: with no flags the half-open engine is tried first; without root/admin/Npcap the concrete reason is printed and the scan falls back to TCP connect (identical result semantics); `-tcp` forces connect, `-syn` is kept for compatibility
+- **Stateless async send/receive (the masscan/zmap model)**: send queue + centralized reply matching + 100ms timeout/retry buckets + token rate limiting + a 300k in-flight cap; every probe gets its initial SYN plus **2 retransmissions** (~0.5s / 1.5s later, both inside the `-time` window) to match the kernel stack's retransmission cadence
+- **Path-tiered automatic rate**: 3000pps when every target is on-link, 500pps when any target crosses the gateway — public links drop bursts (measured: 3000pps missed 1-2 ports per run, 1000pps 2/3 clean, 500pps 3/3 clean); an explicit `-synrate` always wins, negative means unlimited
+- **Full layer-2 stack**: GetBestRoute for routing → system ARP table (GetIpNetTable, 3s snapshot) first → SendARP fallback (5min positive / 5s negative cache) → `net.Interfaces` for the source MAC; local/loopback targets automatically fall back to connect
+- **Low footprint**: a detected-open port is closed immediately with an RST (seq taken from the SYN-ACK ack, RFC793-acceptable), so the peer never keeps an ESTABLISHED entry; `KITTYSYN_DEBUG=1` prints millisecond-stamped diagnostics while normal mode keeps the engine silent
+- **Linux untouched**: `-syn` keeps the existing per-port raw socket implementation (`synscan_linux.go` unchanged)
 
 ### Identify-driven dispatch (v1.3 core)
 
@@ -120,7 +132,7 @@ Default behavior differences:
 ### Other new capabilities
 
 * **Fingerprint-only modes**: `-m finger` / `-m fingeronly` (fingerprints only, no POC, no brute force)
-* **SYN half-open scanning (default engine)**: SYN half-open is tried first by default (Linux root raw sockets; Windows x64/arm64 uses a Npcap-backed async engine in masscan style with `-synrate` rate limiting and auto retransmission), automatically falling back to TCP connect when privileges/Npcap are missing; `-tcp` forces TCP connect, `-syn` is kept for compatibility
+* **SYN half-open scanning (default engine, v1.4)**: SYN half-open is tried first by default (Linux root raw sockets; Windows x64/arm64 uses a Npcap-backed async engine in masscan style with `-synrate` rate limiting and auto retransmission), automatically falling back to TCP connect when privileges/Npcap are missing; `-tcp` forces TCP connect, `-syn` is kept for compatibility
 * **Chinese / English help**: `-help` / `-hen`, every flag comes with examples
 * **Overridable blind-scan credentials**: `-ceye-key` / `-ceye-domain`
 * **Unified `-proxy` entry**:
@@ -164,6 +176,7 @@ Default behavior differences:
 * **v1.3 identification chain**: Quake 14 services × 60 assets each at non-standard ports (**all outside fallback ports**, queried as `service:"x" and port:"<nearby non-standard>"`) — 90%~100% identification on live feature-bearing targets; low-score groups were sampled and attributed to dead assets / half-open silent drops (no response feature ⇒ correctly unidentifiable): redis 6380 went 18% → **100%** (TLS-Redis probe), rdp 13389 **0% → 80%** (concurrent stage-2), mysql 77% → 97%, telnet missed samples 2/2 fixed, TLS-AMQP hit on a real target
 * **v1.3 fake-range tests**: six identification smokes (truncated MySQL / MySQL-ERR / VNC race / TLS-Redis / fake RDP / TLS-AMQP); TIME_WAIT control (3 entries after a normal FIN close vs 0 added by 5 scanner runs); multi-fingerprint union de-dup matrix (5 scenarios + coverage assertion: `gateway.php` hit exactly once)
 * **v1.3 target machines**: real SMB1 on Win7 (dialect routing plus a bonus MS17-010 hit) and real RDP on Win11 (ErrJudge counter reset verified across 5/5 runs under NLA)
+* **v1.4 SYN engine**: six-platform builds (win/linux × amd64/386/arm64) with `CGO=0` plus clean `go vet`; side-by-side parity on the same targets (gateway + public 223.5.5.5 across open/closed/filtered/routed cases) — SYN and connect agreed 6/6 with zero false negatives and zero false positives; gateway ports 1-2000: SYN ~5.6s vs connect ~55.9s (~10x); public 112.28.218.37:1-10000 auto-tier **3/3 clean runs** (554/4367/8000) with the rate ladder 3000pps missing 1-2 per run → 1000pps 2/3 → 500pps 3/3; LAN 1000 ports in 3.06s
 
 ## 3.5 Known limitations
 

@@ -20,11 +20,11 @@ func Scan(info common.HostInfo) {
 	//                 不可用自动降级 TCP Connect 并打印原因，结果语义不变。
 	if common.TcpScan {
 		if !common.Silent {
-			fmt.Println("[*] Scan mode: TCP Connect (forced)")
+			fmt.Println("[*] Scan mode: TCP Connect")
 		}
 	} else if TrySYNScan() {
 		if !common.Silent {
-			fmt.Println("[*] Scan mode: SYN (half-open)")
+			fmt.Println("[*] Scan mode: SYN")
 		}
 	} else {
 		// Windows: 管理员 + Npcap；Linux: root（逐端口 raw socket）。
